@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MBE 매출 대시보드</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#0a0b0f;--card:#12141c;--card2:#1a1d28;--card3:#222636;
+  --border:#2a2e40;--gold:#e8b86d;--gold2:#f5d08a;
+  --text:#e2e6f0;--sub:#6b7694;
+  --green:#22c55e;--red:#ef4444;--blue:#60a5fa;
+  --purple:#a78bfa;--orange:#fb923c;--teal:#2dd4bf;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{font-family:'Apple SD Gothic Neo','Malgun Gothic','Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;}
+
+.hdr{background:linear-gradient(90deg,#0d0f18,#141828 50%,#0d0f18);border-bottom:1px solid var(--border);padding:0 28px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.hdr-brand{font-size:17px;font-weight:800;letter-spacing:1.5px;color:var(--gold);}
+.hdr-sub{font-size:11px;color:var(--sub);letter-spacing:.5px;}
+.hdr-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.hdr-date-wrap{display:flex;align-items:center;gap:8px;}
+.hdr-date-lbl{font-size:11px;color:var(--sub);}
+.date-input{background:var(--card2);border:1px solid var(--border);color:var(--gold);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;outline:none;cursor:pointer;width:130px;}
+.date-input:focus{border-color:var(--gold);}
+.upload-btn{background:var(--gold);color:#0a0b0f;border:none;border-radius:6px;padding:7px 16px;font-weight:700;font-size:12px;cursor:pointer;transition:all .2s;}
+.upload-btn:hover{background:var(--gold2);transform:translateY(-1px);}
+#fileInput{display:none;}
+
+.filter-bar{background:var(--card);border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:center;position:sticky;top:64px;z-index:99;height:50px;overflow-x:auto;}
+.filter-bar::-webkit-scrollbar{height:0;}
+.mode-btns{display:flex;gap:2px;margin-right:20px;flex-shrink:0;}
+.mode-btn{padding:7px 18px;border:none;border-radius:6px;background:transparent;color:var(--sub);cursor:pointer;font-size:13px;font-weight:600;transition:all .2s;white-space:nowrap;}
+.mode-btn:hover{color:var(--text);background:var(--card2);}
+.mode-btn.active{background:var(--gold);color:#0a0b0f;}
+.divider{width:1px;background:var(--border);height:28px;margin:0 16px;flex-shrink:0;}
+.chip-row{display:flex;gap:6px;align-items:center;overflow-x:auto;}
+.chip-row::-webkit-scrollbar{height:0;}
+.chip{padding:5px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--sub);cursor:pointer;font-size:12px;font-weight:600;transition:all .2s;white-space:nowrap;}
+.chip:hover{border-color:var(--gold);color:var(--text);}
+.chip.active{border-color:var(--gold);background:rgba(232,184,109,.12);color:var(--gold);}
+.store-search-wrap{position:relative;margin-left:8px;}
+.store-search{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:5px 14px 5px 30px;font-size:12px;outline:none;width:200px;transition:all .2s;}
+.store-search:focus{border-color:var(--gold);width:260px;}
+.store-search::placeholder{color:var(--sub);}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--sub);font-size:12px;pointer-events:none;}
+.store-dd{position:absolute;top:calc(100% + 6px);left:0;background:var(--card2);border:1px solid var(--border);border-radius:10px;width:300px;max-height:300px;overflow-y:auto;z-index:200;display:none;box-shadow:0 8px 30px rgba(0,0,0,.5);}
+.store-dd.open{display:block;}
+.dd-item{padding:9px 14px;cursor:pointer;font-size:12px;border-bottom:1px solid rgba(42,46,64,.5);display:flex;align-items:center;gap:8px;}
+.dd-item:hover{background:var(--card3);}
+.dd-item:last-child{border-bottom:none;}
+.dd-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+.kpi-strip{background:var(--card);border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:center;height:72px;overflow-x:auto;}
+.kpi-strip::-webkit-scrollbar{height:0;}
+.kpi-item{flex:1;min-width:130px;padding:0 20px;border-right:1px solid var(--border);text-align:center;}
+.kpi-item:last-child{border-right:none;}
+.kpi-lbl{font-size:10px;color:var(--sub);letter-spacing:.8px;text-transform:uppercase;margin-bottom:5px;}
+.kpi-val{font-size:20px;font-weight:800;line-height:1;}
+.kpi-chg{font-size:11px;margin-top:4px;font-weight:600;}
+.up{color:var(--green);}.down{color:var(--red);}.neu{color:var(--sub);}.gold{color:var(--gold);}
+
+.main{padding:24px 28px;}
+.month-chips{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap;align-items:center;}
+.month-chip{padding:4px 12px;border-radius:16px;border:1px solid var(--border);background:transparent;color:var(--sub);cursor:pointer;font-size:12px;font-weight:600;transition:all .15s;}
+.month-chip:hover{border-color:var(--sub);color:var(--text);}
+.month-chip.active{border-color:var(--blue);background:rgba(96,165,250,.12);color:var(--blue);}
+.month-chip.all.active{border-color:var(--gold);background:rgba(232,184,109,.12);color:var(--gold);}
+
+.sec-title{font-size:11px;color:var(--sub);letter-spacing:1px;text-transform:uppercase;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.sec-title::after{content:'';flex:1;height:1px;background:var(--border);}
+
+.chart-row{display:grid;gap:16px;margin-bottom:20px;}
+.cols-2{grid-template-columns:1fr 1fr;}
+.cols-3{grid-template-columns:2fr 1fr 1fr;}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;position:relative;overflow:hidden;}
+.chart-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gold),transparent);}
+.chart-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}
+.chart-title .sub{font-size:11px;color:var(--sub);font-weight:400;}
+.chart-wrap{position:relative;}
+.h200{height:200px;}.h260{height:260px;}.h320{height:320px;}
+
+/* 예상마감 카드 - 개선 */
+.fc-strip{background:linear-gradient(135deg,#141828,#1c1f2e);border:1px solid rgba(232,184,109,.25);border-radius:12px;padding:0;margin-bottom:20px;overflow:hidden;}
+.fc-header{padding:14px 24px;border-bottom:1px solid rgba(232,184,109,.15);display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.fc-header-title{font-size:13px;font-weight:700;color:var(--gold);}
+.fc-date-info{font-size:11px;color:var(--sub);}
+.fc-method{font-size:10px;color:rgba(232,184,109,.6);padding:3px 8px;border:1px solid rgba(232,184,109,.2);border-radius:10px;}
+.fc-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0;}
+.fc-item{padding:18px 24px;border-right:1px solid rgba(42,46,64,.5);}
+.fc-item:last-child{border-right:none;}
+.fc-lbl{font-size:10px;color:var(--sub);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;}
+.fc-val{font-size:22px;font-weight:800;color:var(--gold);}
+.fc-sub{font-size:11px;color:var(--sub);margin-top:4px;}
+.fc-badge{display:inline-block;margin-top:6px;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;}
+.fc-badge.pos{background:rgba(34,197,94,.15);color:var(--green);}
+.fc-badge.neg{background:rgba(239,68,68,.15);color:var(--red);}
+.fc-badge.neu{background:rgba(107,118,148,.15);color:var(--sub);}
+
+/* 잔여일 표시 */
+.day-pills{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap;}
+.day-pill{padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;}
+.day-pill.wd{background:rgba(96,165,250,.15);color:var(--blue);}
+.day-pill.we{background:rgba(251,146,60,.15);color:var(--orange);}
+
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);}
+.tbl{width:100%;border-collapse:collapse;font-size:12px;min-width:1100px;}
+.tbl thead th{background:var(--card2);color:var(--sub);padding:10px 12px;text-align:left;font-size:10px;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;}
+.tbl thead th:hover{color:var(--text);}
+.tbl tbody td{padding:9px 12px;border-bottom:1px solid rgba(42,46,64,.4);white-space:nowrap;vertical-align:middle;}
+.tbl tbody tr{cursor:pointer;}
+.tbl tbody tr:hover td{background:rgba(255,255,255,.025);}
+.tbl tbody tr:last-child td{border-bottom:none;}
+.ch-tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;}
+.mgr-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;}
+.note-btn{background:none;border:1px solid var(--border);color:var(--sub);border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.note-btn:hover{border-color:var(--gold);color:var(--gold);}
+.note-btn.filled{border-color:rgba(232,184,109,.4);color:var(--gold);background:rgba(232,184,109,.06);}
+
+.inactive-toggle{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:var(--sub);}
+.toggle-sw{width:32px;height:18px;background:var(--border);border-radius:9px;cursor:pointer;position:relative;transition:background .2s;}
+.toggle-sw.on{background:rgba(232,184,109,.4);}
+.toggle-sw::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left .2s;}
+.toggle-sw.on::after{left:16px;}
+
+.mgr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:20px;}
+.mgr-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+.mgr-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.mgr-card-name{font-size:16px;font-weight:800;margin-bottom:12px;}
+.mgr-card-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.mgr-stat-val{font-size:18px;font-weight:700;}
+.mgr-stat-lbl{font-size:10px;color:var(--sub);letter-spacing:.5px;margin-top:2px;}
+.mgr-bar{height:3px;background:var(--border);border-radius:2px;margin-top:12px;overflow:hidden;}
+.mgr-bar-fill{height:100%;border-radius:2px;}
+
+.ch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:20px;}
+.ch-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .2s;}
+.ch-card:hover{border-color:var(--gold);transform:translateY(-2px);}
+
+.drill-hdr{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+.drill-name{font-size:20px;font-weight:800;}
+
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;align-items:center;justify-content:center;}
+.overlay.open{display:flex;}
+.modal{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:28px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+.modal h3{font-size:15px;font-weight:700;margin-bottom:4px;}
+.modal-sub{font-size:12px;color:var(--sub);margin-bottom:16px;}
+.modal textarea{width:100%;height:110px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px;font-size:13px;font-family:inherit;resize:vertical;outline:none;}
+.modal textarea:focus{border-color:var(--gold);}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;}
+.btn-primary{background:var(--gold);color:#0a0b0f;border:none;padding:8px 20px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--sub);padding:8px 20px;border-radius:8px;font-size:13px;cursor:pointer;}
+.btn-ghost:hover{border-color:var(--sub);color:var(--text);}
+.inactive-row td{opacity:.4;}
+
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+@media(max-width:768px){
+  .hdr,.filter-bar,.kpi-strip,.main{padding-left:16px;padding-right:16px;}
+  .cols-2,.cols-3{grid-template-columns:1fr;}
+  .fc-body{grid-template-columns:1fr 1fr;}
+}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div>
+    <div class="hdr-brand">MASTER BUNNY EDITION</div>
+    <div class="hdr-sub">크리스에프앤씨 · 영업본부 매출 대시보드</div>
+  </div>
+  <div class="hdr-right">
+    <div class="hdr-date-wrap">
+      <span class="hdr-date-lbl">데이터 기준일</span>
+      <input type="date" class="date-input" id="dataDate" value="2026-06-30" onchange="onDateChange()">
+    </div>
+    <label class="upload-btn" for="fileInput">↑ 엑셀 업데이트</label>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  </div>
+</header>
+
+<div class="filter-bar">
+  <div class="mode-btns">
+    <button class="mode-btn active" onclick="setMode('all',event)">전체현황</button>
+    <button class="mode-btn" onclick="setMode('channel',event)">유통별</button>
+    <button class="mode-btn" onclick="setMode('manager',event)">담당별</button>
+    <button class="mode-btn" onclick="setMode('store',event)">매장개별</button>
+  </div>
+  <div class="divider"></div>
+  <div class="chip-row" id="subChips"></div>
+  <div class="store-search-wrap" id="ssWrap" style="display:none">
+    <span class="search-icon">🔍</span>
+    <input type="text" class="store-search" id="storeSearch" placeholder="매장명 / 담당 검색..." autocomplete="off" oninput="filterDD()">
+    <div class="store-dd" id="storeDd"></div>
+  </div>
+</div>
+
+<div class="kpi-strip" id="kpiStrip"></div>
+
+<div class="main">
+  <div class="month-chips" id="monthChips"></div>
+  <div id="contentArea"></div>
+</div>
+
+<div class="overlay" id="noteOverlay">
+  <div class="modal">
+    <h3 id="noteTitle"></h3>
+    <div class="modal-sub" id="noteSub"></div>
+    <textarea id="noteText" placeholder="특이사항 입력&#10;예: 리뉴얼 공사중 / 담당자 변경 / 프로모션 진행 / 매장 이슈"></textarea>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeNote()">취소</button>
+      <button class="btn-primary" onclick="saveNote()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══ 데이터 ══
+let STORES = [{"name": "온라인쇼핑", "channel": "O (온라인쇼핑몰)", "manager": "", "rank": 1, "total": 5084733320, "monthly_avg": 852163639, "prev_year": 5912097200, "growth": -13.99, "new_product": 344610200, "old_product": 4740123120, "monthly": {"1월": 587394000, "2월": 546875280, "3월": 947027800, "4월": 1271948000, "5월": 1072015300, "6월": 659472940}, "monthly_prev": {"1월": 690841800, "2월": 963193500, "3월": 1053371200, "4월": 1474483500, "5월": 1035169600, "6월": 695037600}, "monthly_new": {"1월": 28378200, "2월": 36737200, "3월": 75112400, "4월": 68036200, "5월": 63502600, "6월": 72843600}, "monthly_old": {"1월": 559015800, "2월": 510138080, "3월": 871915400, "4월": 1203911800, "5월": 1008512700, "6월": 586629340}, "months_active": 6, "active": true}, {"name": "현대김포MB(아울렛)", "channel": "H (아울렛)", "manager": "정병식", "rank": 2, "total": 819639400, "monthly_avg": 137365492, "prev_year": 840764000, "growth": -2.51, "new_product": 25820483, "old_product": 793818917, "monthly": {"1월": 72593200, "2월": 80016800, "3월": 123035800, "4월": 173418500, "5월": 220723000, "6월": 149852100}, "monthly_prev": {"1월": 95039600, "2월": 81802800, "3월": 160678000, "4월": 162237000, "5월": 203108400, "6월": 137898200}, "monthly_new": {"1월": 3915800, "2월": 2698000, "3월": 5647400, "4월": 3417883, "5월": 5497000, "6월": 4644400}, "monthly_old": {"1월": 68677400, "2월": 77318800, "3월": 117388400, "4월": 170000617, "5월": 215226000, "6월": 145207700}, "months_active": 6, "active": true}, {"name": "롯데동부산MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 3, "total": 718749000, "monthly_avg": 120457008, "prev_year": 718788110, "growth": -0.01, "new_product": 43605800, "old_product": 675143200, "monthly": {"1월": 81107000, "2월": 74410200, "3월": 177694700, "4월": 138379700, "5월": 155861200, "6월": 91296200}, "monthly_prev": {"1월": 85846800, "2월": 73217800, "3월": 162988910, "4월": 116594200, "5월": 144507800, "6월": 135632600}, "monthly_new": {"1월": 585200, "2월": 6183800, "3월": 16725400, "4월": 6587600, "5월": 6714000, "6월": 6809800}, "monthly_old": {"1월": 80521800, "2월": 68226400, "3월": 160969300, "4월": 131792100, "5월": 149147200, "6월": 84486400}, "months_active": 6, "active": true}, {"name": "현대송도MB(아울렛)", "channel": "H (아울렛)", "manager": "정병식", "rank": 4, "total": 569676090, "monthly_avg": 95473492, "prev_year": 591507600, "growth": -3.69, "new_product": 37869000, "old_product": 531807090, "monthly": {"1월": 62040190, "2월": 63279600, "3월": 131265400, "4월": 115683300, "5월": 107639000, "6월": 89768600}, "monthly_prev": {"1월": 65010400, "2월": 76511800, "3월": 113305200, "4월": 118440400, "5월": 120339200, "6월": 97900600}, "monthly_new": {"1월": 2395400, "2월": 8683000, "3월": 16038800, "4월": 5807200, "5월": 110400, "6월": 4834200}, "monthly_old": {"1월": 59644790, "2월": 54596600, "3월": 115226600, "4월": 109876100, "5월": 107528600, "6월": 84934400}, "months_active": 6, "active": true}, {"name": "롯데김해MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 5, "total": 534686700, "monthly_avg": 89609530, "prev_year": 574703600, "growth": -6.96, "new_product": 50790600, "old_product": 483896100, "monthly": {"1월": 52505600, "2월": 55014000, "3월": 106491800, "4월": 159232600, "5월": 96478600, "6월": 64964100}, "monthly_prev": {"1월": 70238000, "2월": 74483000, "3월": 110061000, "4월": 160013800, "5월": 100055400, "6월": 59852400}, "monthly_new": {"1월": 3007200, "2월": 6318200, "3월": 17732200, "4월": 7429600, "5월": 5479200, "6월": 10824200}, "monthly_old": {"1월": 49498400, "2월": 48695800, "3월": 88759600, "4월": 151803000, "5월": 90999400, "6월": 54139900}, "months_active": 6, "active": true}, {"name": "롯데기흥MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 6, "total": 515852200, "monthly_avg": 86453007, "prev_year": 543256000, "growth": -5.04, "new_product": 35060400, "old_product": 480791800, "monthly": {"1월": 41283000, "2월": 56202800, "3월": 129578800, "4월": 109804100, "5월": 107606600, "6월": 71376900}, "monthly_prev": {"1월": 35632800, "2월": 55198800, "3월": 129316800, "4월": 117830200, "5월": 128065200, "6월": 77212200}, "monthly_new": {"1월": 2882800, "2월": 5271200, "3월": 13875000, "4월": 4954800, "5월": 2287600, "6월": 5789000}, "monthly_old": {"1월": 38400200, "2월": 50931600, "3월": 115703800, "4월": 104849300, "5월": 105319000, "6월": 65587900}, "months_active": 6, "active": true}, {"name": "롯데남악MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 7, "total": 460703180, "monthly_avg": 77210440, "prev_year": 459949220, "growth": 0.16, "new_product": 112865378, "old_product": 347837802, "monthly": {"1월": 53130100, "2월": 53039630, "3월": 92901660, "4월": 94477400, "5월": 105568750, "6월": 61585640}, "monthly_prev": {"1월": 59209800, "2월": 55622700, "3월": 91545200, "4월": 87434200, "5월": 93368000, "6월": 72769320}, "monthly_new": {"1월": 18454100, "2월": 18660587, "3월": 25690691, "4월": 10955122, "5월": 18535350, "6월": 20569528}, "monthly_old": {"1월": 34676000, "2월": 34379043, "3월": 67210969, "4월": 83522278, "5월": 87033400, "6월": 41016112}, "months_active": 6, "active": true}, {"name": "롯데의왕MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 8, "total": 453661160, "monthly_avg": 76030249, "prev_year": 495531800, "growth": -8.45, "new_product": 27978800, "old_product": 425682360, "monthly": {"1월": 34121400, "2월": 44664800, "3월": 106735200, "4월": 102458660, "5월": 96325900, "6월": 69355200}, "monthly_prev": {"1월": 40049000, "2월": 37663600, "3월": 88608000, "4월": 105185200, "5월": 104479600, "6월": 119546400}, "monthly_new": {"1월": 3941000, "2월": 6640200, "3월": 6558800, "4월": 1844400, "5월": 2038000, "6월": 6956400}, "monthly_old": {"1월": 30180400, "2월": 38024600, "3월": 100176400, "4월": 100614260, "5월": 94287900, "6월": 62398800}, "months_active": 6, "active": true}, {"name": "롯데잠실MB", "channel": "A (백화점)", "manager": "공진규", "rank": 9, "total": 450958840, "monthly_avg": 75577361, "prev_year": 420057200, "growth": 7.36, "new_product": 343559840, "old_product": 107399000, "monthly": {"1월": 44894000, "2월": 45191640, "3월": 84392960, "4월": 92908200, "5월": 119106600, "6월": 64465440}, "monthly_prev": {"1월": 30754400, "2월": 30774000, "3월": 80010800, "4월": 92023600, "5월": 117374200, "6월": 69120200}, "monthly_new": {"1월": 34461400, "2월": 30024440, "3월": 62062560, "4월": 69178500, "5월": 97619300, "6월": 50213640}, "monthly_old": {"1월": 10432600, "2월": 15167200, "3월": 22330400, "4월": 23729700, "5월": 21487300, "6월": 14251800}, "months_active": 6, "active": true}, {"name": "현대판교MB", "channel": "A (백화점)", "manager": "문지훈", "rank": 10, "total": 447984320, "monthly_avg": 75078853, "prev_year": 484475480, "growth": -7.53, "new_product": 185733160, "old_product": 262251160, "monthly": {"1월": 34731280, "2월": 54552400, "3월": 72957680, "4월": 71726600, "5월": 115676660, "6월": 98339700}, "monthly_prev": {"1월": 16004400, "2월": 47291600, "3월": 93218000, "4월": 128075480, "5월": 118073000, "6월": 81813000}, "monthly_new": {"1월": 12964280, "2월": 24565200, "3월": 33992080, "4월": 41541200, "5월": 42145200, "6월": 30525200}, "monthly_old": {"1월": 21767000, "2월": 29987200, "3월": 38965600, "4월": 30185400, "5월": 73531460, "6월": 67814500}, "months_active": 6, "active": true}, {"name": "첼시여주MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 11, "total": 438236500, "monthly_avg": 73445191, "prev_year": 292152200, "growth": 50.0, "new_product": 44760400, "old_product": 393476100, "monthly": {"1월": 26692000, "2월": 35740600, "3월": 81349600, "4월": 109101200, "5월": 106790300, "6월": 78562800}, "monthly_prev": {"1월": 35498600, "2월": 26117200, "3월": 49711600, "4월": 59397400, "5월": 70101400, "6월": 51326000}, "monthly_new": {"1월": 1726200, "2월": 3887400, "3월": 12241600, "4월": 2352000, "5월": 3485600, "6월": 21067600}, "monthly_old": {"1월": 24965800, "2월": 31853200, "3월": 69108000, "4월": 106749200, "5월": 103304700, "6월": 57495200}, "months_active": 6, "active": true}, {"name": "롯데이천MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 12, "total": 434030860, "monthly_avg": 72740357, "prev_year": 401680600, "growth": 8.05, "new_product": 27457000, "old_product": 406573860, "monthly": {"1월": 48550800, "2월": 39309200, "3월": 64836400, "4월": 90046060, "5월": 121263500, "6월": 70024900}, "monthly_prev": {"1월": 29050600, "2월": 32198200, "3월": 105224400, "4월": 84737200, "5월": 81184800, "6월": 69285400}, "monthly_new": {"1월": 2115400, "2월": 5821200, "3월": 5862600, "4월": 1363600, "5월": 600000, "6월": 11694200}, "monthly_old": {"1월": 46435400, "2월": 33488000, "3월": 58973800, "4월": 88682460, "5월": 120663500, "6월": 58330700}, "months_active": 6, "active": true}, {"name": "첼시시흥MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 13, "total": 427251100, "monthly_avg": 71604119, "prev_year": 457497040, "growth": -6.61, "new_product": 47963000, "old_product": 379288100, "monthly": {"1월": 35454000, "2월": 44199000, "3월": 85170200, "4월": 99000700, "5월": 94421900, "6월": 69005300}, "monthly_prev": {"1월": 54388200, "2월": 41279000, "3월": 85151240, "4월": 92030600, "5월": 95297000, "6월": 89351000}, "monthly_new": {"1월": 2228800, "2월": 8498800, "3월": 13882400, "4월": 10571200, "5월": 4613600, "6월": 8168200}, "monthly_old": {"1월": 33225200, "2월": 35700200, "3월": 71287800, "4월": 88429500, "5월": 89808300, "6월": 60837100}, "months_active": 6, "active": true}, {"name": "단체(매일경제)", "channel": "Z (기타)", "manager": "", "rank": 14, "total": 418502000, "monthly_avg": 105576640, "prev_year": 0, "growth": 0, "new_product": 418502000, "old_product": 0, "monthly": {"1월": 0, "2월": 0, "3월": 418502000, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 418502000, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "롯데본점MB", "channel": "A (백화점)", "manager": "공진규", "rank": 15, "total": 413247120, "monthly_avg": 69257156, "prev_year": 340808200, "growth": 21.26, "new_product": 258155020, "old_product": 155092100, "monthly": {"1월": 38682600, "2월": 42002120, "3월": 56810400, "4월": 87294060, "5월": 118946840, "6월": 69511100}, "monthly_prev": {"1월": 42278200, "2월": 36977600, "3월": 60942400, "4월": 53289000, "5월": 83951800, "6월": 63369200}, "monthly_new": {"1월": 26881200, "2월": 25637920, "3월": 39028000, "4월": 51438760, "5월": 75927740, "6월": 39241400}, "monthly_old": {"1월": 11801400, "2월": 16364200, "3월": 17782400, "4월": 35855300, "5월": 43019100, "6월": 30269700}, "months_active": 6, "active": true}, {"name": "현대대전MB(아울렛)", "channel": "H (아울렛)", "manager": "정병식", "rank": 16, "total": 410274200, "monthly_avg": 68758916, "prev_year": 446090800, "growth": -8.03, "new_product": 28301400, "old_product": 381972800, "monthly": {"1월": 33395000, "2월": 36338000, "3월": 86357500, "4월": 94326000, "5월": 93459400, "6월": 66398300}, "monthly_prev": {"1월": 41593000, "2월": 38571800, "3월": 90331400, "4월": 122842800, "5월": 78464600, "6월": 74287200}, "monthly_new": {"1월": 1754200, "2월": 3168200, "3월": 11066000, "4월": 9509200, "5월": 899400, "6월": 1904400}, "monthly_old": {"1월": 31640800, "2월": 33169800, "3월": 75291500, "4월": 84816800, "5월": 92560000, "6월": 64493900}, "months_active": 6, "active": true}, {"name": "현대목동MB", "channel": "A (백화점)", "manager": "문지훈", "rank": 17, "total": 389904420, "monthly_avg": 65345092, "prev_year": 375520400, "growth": 3.83, "new_product": 354696420, "old_product": 35208000, "monthly": {"1월": 40807600, "2월": 39677620, "3월": 94891120, "4월": 97144920, "5월": 68987360, "6월": 48395800}, "monthly_prev": {"1월": 25320600, "2월": 44706400, "3월": 127578000, "4월": 58230000, "5월": 62157400, "6월": 57528000}, "monthly_new": {"1월": 40807600, "2월": 39677620, "3월": 59080520, "4월": 97409520, "5월": 68987360, "6월": 48733800}, "monthly_old": {"1월": 0, "2월": 0, "3월": 35810600, "4월": -264600, "5월": 0, "6월": -338000}, "months_active": 6, "active": true}, {"name": "평촌MB", "channel": "C (대리점)", "manager": "양승일", "rank": 18, "total": 376059283, "monthly_avg": 63024750, "prev_year": 426512372, "growth": -11.83, "new_product": 139045463, "old_product": 237013820, "monthly": {"1월": 36233974, "2월": 31423300, "3월": 81290300, "4월": 77502789, "5월": 80812520, "6월": 68796400}, "monthly_prev": {"1월": 0, "2월": 508200, "3월": 99405122, "4월": 101041900, "5월": 128855650, "6월": 96701500}, "monthly_new": {"1월": 15529774, "2월": 11799500, "3월": 39644400, "4월": 32457489, "5월": 20428900, "6월": 19185400}, "monthly_old": {"1월": 20704200, "2월": 19623800, "3월": 41645900, "4월": 45045300, "5월": 60383620, "6월": 49611000}, "months_active": 6, "active": true}, {"name": "롯데광명MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 19, "total": 347906600, "monthly_avg": 58306569, "prev_year": 356349200, "growth": -2.37, "new_product": 33264600, "old_product": 314642000, "monthly": {"1월": 30275800, "2월": 35680400, "3월": 71311400, "4월": 82888100, "5월": 73739000, "6월": 54011900}, "monthly_prev": {"1월": 34142800, "2월": 34663800, "3월": 67286600, "4월": 93037400, "5월": 72954200, "6월": 54264400}, "monthly_new": {"1월": 3006800, "2월": 7478800, "3월": 8410000, "4월": 2555400, "5월": 1897600, "6월": 9916000}, "monthly_old": {"1월": 27269000, "2월": 28201600, "3월": 62901400, "4월": 80332700, "5월": 71841400, "6월": 44095900}, "months_active": 6, "active": true}, {"name": "김해진영MB", "channel": "C (대리점)", "manager": "양승일", "rank": 20, "total": 334316540, "monthly_avg": 56028975, "prev_year": 347702903, "growth": -3.85, "new_product": 158817342, "old_product": 175499198, "monthly": {"1월": 25622400, "2월": 20442740, "3월": 83754450, "4월": 70758920, "5월": 71019060, "6월": 62718970}, "monthly_prev": {"1월": 43332672, "2월": 36263894, "3월": 70072305, "4월": 71647400, "5월": 77928079, "6월": 48458553}, "monthly_new": {"1월": 15219600, "2월": 10029340, "3월": 43600371, "4월": 31654500, "5월": 23030755, "6월": 35282776}, "monthly_old": {"1월": 10402800, "2월": 10413400, "3월": 40154079, "4월": 39104420, "5월": 47988305, "6월": 27436194}, "months_active": 6, "active": true}, {"name": "경주모다MB", "channel": "C (대리점)", "manager": "양승일", "rank": 21, "total": 316134670, "monthly_avg": 52981828, "prev_year": 348474408, "growth": -9.28, "new_product": 143908828, "old_product": 172225842, "monthly": {"1월": 32512120, "2월": 47761720, "3월": 67636600, "4월": 61007120, "5월": 52773420, "6월": 54443690}, "monthly_prev": {"1월": 36212600, "2월": 29367000, "3월": 78238350, "4월": 81666950, "5월": 64983950, "6월": 58005558}, "monthly_new": {"1월": 15986335, "2월": 25083764, "3월": 32140600, "4월": 25463517, "5월": 23682618, "6월": 21551994}, "monthly_old": {"1월": 16525785, "2월": 22677956, "3월": 35496000, "4월": 35543603, "5월": 29090802, "6월": 32891696}, "months_active": 6, "active": true}, {"name": "첼시파주MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 22, "total": 305406700, "monthly_avg": 51183900, "prev_year": 403698300, "growth": -24.35, "new_product": 21960400, "old_product": 283446300, "monthly": {"1월": 28159800, "2월": 33633800, "3월": 61150000, "4월": 62172500, "5월": 62742700, "6월": 57547900}, "monthly_prev": {"1월": 44305000, "2월": 39007300, "3월": 105763000, "4월": 75886200, "5월": 82527800, "6월": 56209000}, "monthly_new": {"1월": 0, "2월": 1607200, "3월": 6389000, "4월": 3822200, "5월": 3363200, "6월": 6778800}, "monthly_old": {"1월": 28159800, "2월": 32026600, "3월": 54761000, "4월": 58350300, "5월": 59379500, "6월": 50769100}, "months_active": 6, "active": true}, {"name": "현대울산MB", "channel": "A (백화점)", "manager": "문지훈", "rank": 23, "total": 291928900, "monthly_avg": 48925121, "prev_year": 278513000, "growth": 4.82, "new_product": 292692680, "old_product": -763780, "monthly": {"1월": 29150880, "2월": 30904000, "3월": 61832620, "4월": 57555640, "5월": 67568860, "6월": 44916900}, "monthly_prev": {"1월": 24145000, "2월": 27955000, "3월": 50211200, "4월": 66635400, "5월": 67549000, "6월": 42017400}, "monthly_new": {"1월": 29150880, "2월": 30904000, "3월": 61998400, "4월": 57555640, "5월": 68166860, "6월": 44916900}, "monthly_old": {"1월": 0, "2월": 0, "3월": -165780, "4월": 0, "5월": -598000, "6월": 0}, "months_active": 6, "active": true}, {"name": "롯데서울역MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 24, "total": 285112500, "monthly_avg": 47782743, "prev_year": 274886600, "growth": 3.72, "new_product": 19453800, "old_product": 265658700, "monthly": {"1월": 37303000, "2월": 27425800, "3월": 55664000, "4월": 56789800, "5월": 50085000, "6월": 57844900}, "monthly_prev": {"1월": 40647800, "2월": 31303000, "3월": 51433000, "4월": 60814000, "5월": 53092000, "6월": 37596800}, "monthly_new": {"1월": 3841000, "2월": 5229200, "3월": 6371200, "4월": 44800, "5월": 1159600, "6월": 2808000}, "monthly_old": {"1월": 33462000, "2월": 22196600, "3월": 49292800, "4월": 56745000, "5월": 48925400, "6월": 55036900}, "months_active": 6, "active": true}, {"name": "롯데이시아폴리스MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 25, "total": 284608400, "monthly_avg": 47698259, "prev_year": 275273440, "growth": 3.39, "new_product": 14298800, "old_product": 270309600, "monthly": {"1월": 24098400, "2월": 28817400, "3월": 60275100, "4월": 70284900, "5월": 62202000, "6월": 38930600}, "monthly_prev": {"1월": 30221000, "2월": 29273640, "3월": 61370800, "4월": 66752600, "5월": 51652000, "6월": 36003400}, "monthly_new": {"1월": 1295000, "2월": 1642200, "3월": 5881200, "4월": 2187600, "5월": 1737800, "6월": 1555000}, "monthly_old": {"1월": 22803400, "2월": 27175200, "3월": 54393900, "4월": 68097300, "5월": 60464200, "6월": 37375600}, "months_active": 6, "active": true}, {"name": "진해자은MB", "channel": "C (대리점)", "manager": "양승일", "rank": 26, "total": 266037090, "monthly_avg": 44585845, "prev_year": 299824621, "growth": -11.27, "new_product": 135745719, "old_product": 130291371, "monthly": {"1월": 33538400, "2월": 28344200, "3월": 47467700, "4월": 53321740, "5월": 62784230, "6월": 40580820}, "monthly_prev": {"1월": 23800050, "2월": 55091927, "3월": 62367850, "4월": 49170658, "5월": 57965699, "6월": 51428437}, "monthly_new": {"1월": 15403600, "2월": 8406800, "3월": 30687500, "4월": 23689669, "5월": 36331530, "6월": 21226620}, "monthly_old": {"1월": 18134800, "2월": 19937400, "3월": 16780200, "4월": 29632071, "5월": 26452700, "6월": 19354200}, "months_active": 6, "active": true}, {"name": "갤/광교MB", "channel": "A (백화점)", "manager": "공진규", "rank": 27, "total": 262079200, "monthly_avg": 43922532, "prev_year": 240703000, "growth": 8.88, "new_product": 261828600, "old_product": 250600, "monthly": {"1월": 30948880, "2월": 28745000, "3월": 45484200, "4월": 57344000, "5월": 61179720, "6월": 38377400}, "monthly_prev": {"1월": 15589000, "2월": 18776000, "3월": 58427400, "4월": 52525400, "5월": 52982400, "6월": 42402800}, "monthly_new": {"1월": 30948880, "2월": 28745000, "3월": 45233600, "4월": 57344000, "5월": 61179720, "6월": 38377400}, "monthly_old": {"1월": 0, "2월": 0, "3월": 250600, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "첼시부산MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 28, "total": 260598100, "monthly_avg": 43674311, "prev_year": 357312400, "growth": -27.07, "new_product": 25498800, "old_product": 235099300, "monthly": {"1월": 32067000, "2월": 28159400, "3월": 75130600, "4월": 43501000, "5월": 46863200, "6월": 34876900}, "monthly_prev": {"1월": 49026200, "2월": 35131400, "3월": 92980600, "4월": 68404200, "5월": 64152400, "6월": 47617600}, "monthly_new": {"1월": 4403000, "2월": 6556200, "3월": 9871200, "4월": 1056800, "5월": 528800, "6월": 3082800}, "monthly_old": {"1월": 27664000, "2월": 21603200, "3월": 65259400, "4월": 42444200, "5월": 46334400, "6월": 31794100}, "months_active": 6, "active": true}, {"name": "현대무역MB", "channel": "A (백화점)", "manager": "문지훈", "rank": 29, "total": 237502400, "monthly_avg": 39803642, "prev_year": 479520416, "growth": -50.47, "new_product": 182876600, "old_product": 54625800, "monthly": {"1월": 17682400, "2월": 18328840, "3월": 47317020, "4월": 44132940, "5월": 57458120, "6월": 52583080}, "monthly_prev": {"1월": 12033000, "2월": 20333800, "3월": 86594600, "4월": 122233400, "5월": 145418216, "6월": 92907400}, "monthly_new": {"1월": 14730200, "2월": 15834640, "3월": 27784320, "4월": 40435840, "5월": 43986920, "6월": 40104680}, "monthly_old": {"1월": 2952200, "2월": 2494200, "3월": 19532700, "4월": 3697100, "5월": 13471200, "6월": 12478400}, "months_active": 6, "active": true}, {"name": "롯데인천터미널MB", "channel": "A (백화점)", "manager": "공진규", "rank": 30, "total": 235985880, "monthly_avg": 39549485, "prev_year": 198030600, "growth": 19.17, "new_product": 164183080, "old_product": 71802800, "monthly": {"1월": 26542880, "2월": 31017720, "3월": 56353400, "4월": 46320860, "5월": 53095640, "6월": 22655380}, "monthly_prev": {"1월": 9346600, "2월": 22002400, "3월": 20744200, "4월": 31684000, "5월": 58103200, "6월": 56150200}, "monthly_new": {"1월": 18786080, "2월": 22036320, "3월": 36415600, "4월": 29003960, "5월": 38319240, "6월": 19621880}, "monthly_old": {"1월": 7756800, "2월": 8981400, "3월": 19937800, "4월": 17316900, "5월": 14776400, "6월": 3033500}, "months_active": 6, "active": true}, {"name": "롯데청주MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 31, "total": 225221970, "monthly_avg": 1509821354, "prev_year": 188891300, "growth": 19.23, "new_product": 40787860, "old_product": 184434110, "monthly": {"1월": 13955690, "2월": 28187600, "3월": 55708100, "4월": 43001200, "5월": 53017320, "6월": 31352060}, "monthly_prev": {"1월": 25329600, "2월": 21277000, "3월": 42895600, "4월": 45172700, "5월": 29278400, "6월": 24938000}, "monthly_new": {"1월": 1929200, "2월": 5825800, "3월": 16953600, "4월": 5508400, "5월": 3893000, "6월": 6677860}, "monthly_old": {"1월": 12026490, "2월": 22361800, "3월": 38754500, "4월": 37492800, "5월": 49124320, "6월": 24674200}, "months_active": 6, "active": true}, {"name": "대구봉무MB", "channel": "C (대리점)", "manager": "양승일", "rank": 32, "total": 225032120, "monthly_avg": 37713716, "prev_year": 215771002, "growth": 4.29, "new_product": 104854898, "old_product": 120177222, "monthly": {"1월": 29355400, "2월": 12643110, "3월": 51843300, "4월": 55655580, "5월": 43399320, "6월": 32135410}, "monthly_prev": {"1월": 25962200, "2월": 18790640, "3월": 44476600, "4월": 41253200, "5월": 41579700, "6월": 43708662}, "monthly_new": {"1월": 17467200, "2월": 6000310, "3월": 21080674, "4월": 19161900, "5월": 24820840, "6월": 16323974}, "monthly_old": {"1월": 11888200, "2월": 6642800, "3월": 30762626, "4월": 36493680, "5월": 18578480, "6월": 15811436}, "months_active": 6, "active": true}, {"name": "현대가산MB(아울렛)", "channel": "H (아울렛)", "manager": "정병식", "rank": 33, "total": 221828640, "monthly_avg": 37176836, "prev_year": 0, "growth": 0, "new_product": 17517000, "old_product": 204311640, "monthly": {"1월": 24454000, "2월": 24262800, "3월": 42576000, "4월": 46076100, "5월": 41500140, "6월": 42959600}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 2735600, "2월": 3803800, "3월": 6194000, "4월": 1022000, "5월": 1065200, "6월": 2696400}, "monthly_old": {"1월": 21718400, "2월": 20459000, "3월": 36382000, "4월": 45054100, "5월": 40434940, "6월": 40263200}, "months_active": 6, "active": true}, {"name": "롯데노원MB", "channel": "A (백화점)", "manager": "공진규", "rank": 34, "total": 217783140, "monthly_avg": 36498841, "prev_year": 217610400, "growth": 0.08, "new_product": 216746340, "old_product": 1036800, "monthly": {"1월": 16149360, "2월": 22133680, "3월": 39199280, "4월": 51687240, "5월": 51044040, "6월": 37569540}, "monthly_prev": {"1월": 21025400, "2월": 24240600, "3월": 35278600, "4월": 44540600, "5월": 52116800, "6월": 40408400}, "monthly_new": {"1월": 16149360, "2월": 22133680, "3월": 38162480, "4월": 51687240, "5월": 51044040, "6월": 37569540}, "monthly_old": {"1월": 0, "2월": 0, "3월": 1036800, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "롯데광주수완MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 35, "total": 214448800, "monthly_avg": 35940030, "prev_year": 254025600, "growth": -15.58, "new_product": 26373800, "old_product": 188075000, "monthly": {"1월": 16358700, "2월": 30224000, "3월": 49086300, "4월": 50201700, "5월": 37040100, "6월": 31538000}, "monthly_prev": {"1월": 25667800, "2월": 27667600, "3월": 49051600, "4월": 56598800, "5월": 53004000, "6월": 42035800}, "monthly_new": {"1월": 2174200, "2월": 8737400, "3월": 5257000, "4월": 512000, "5월": 316200, "6월": 9377000}, "monthly_old": {"1월": 14184500, "2월": 21486600, "3월": 43829300, "4월": 49689700, "5월": 36723900, "6월": 22161000}, "months_active": 6, "active": true}, {"name": "광주상무MB", "channel": "C (대리점)", "manager": "양승일", "rank": 36, "total": 212187727, "monthly_avg": 35561091, "prev_year": 213337254, "growth": -0.54, "new_product": 135509943, "old_product": 76677784, "monthly": {"1월": 16574287, "2월": 12476710, "3월": 42965490, "4월": 50167900, "5월": 53439050, "6월": 36564290}, "monthly_prev": {"1월": 17830027, "2월": 22774584, "3월": 50767042, "4월": 50782800, "5월": 40207411, "6월": 30975390}, "monthly_new": {"1월": 12366287, "2월": 8970910, "3월": 28818090, "4월": 30471400, "5월": 30071856, "6월": 24811400}, "monthly_old": {"1월": 4208000, "2월": 3505800, "3월": 14147400, "4월": 19696500, "5월": 23367194, "6월": 11752890}, "months_active": 6, "active": true}, {"name": "롯데부산MB", "channel": "A (백화점)", "manager": "공진규", "rank": 37, "total": 209966900, "monthly_avg": 35188897, "prev_year": 210133600, "growth": -0.08, "new_product": 171775200, "old_product": 38191700, "monthly": {"1월": 38177960, "2월": 35730520, "3월": 33089300, "4월": 32608800, "5월": 48212120, "6월": 22148200}, "monthly_prev": {"1월": 19076800, "2월": 34392200, "3월": 28025400, "4월": 42314600, "5월": 60041200, "6월": 26283400}, "monthly_new": {"1월": 26257760, "2월": 28300520, "3월": 32456300, "4월": 24230200, "5월": 43302420, "6월": 17228000}, "monthly_old": {"1월": 11920200, "2월": 7430000, "3월": 633000, "4월": 8378600, "5월": 4909700, "6월": 4920200}, "months_active": 6, "active": true}, {"name": "현대대구MB(아울렛)", "channel": "H (아울렛)", "manager": "정병식", "rank": 38, "total": 203524160, "monthly_avg": 34109141, "prev_year": 170529800, "growth": 19.35, "new_product": 12106800, "old_product": 191417360, "monthly": {"1월": 16247600, "2월": 21342200, "3월": 43035800, "4월": 41380000, "5월": 54526960, "6월": 26991600}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 37836400, "4월": 58333600, "5월": 42742600, "6월": 31617200}, "monthly_new": {"1월": 1663400, "2월": 2313200, "3월": 3569600, "4월": 490800, "5월": 641600, "6월": 3428200}, "monthly_old": {"1월": 14584200, "2월": 19029000, "3월": 39466200, "4월": 40889200, "5월": 53885360, "6월": 23563400}, "months_active": 6, "active": true}, {"name": "신세계하남MB", "channel": "A (백화점)", "manager": "문지훈", "rank": 39, "total": 197184000, "monthly_avg": 33046577, "prev_year": 132038800, "growth": 49.34, "new_product": 114976600, "old_product": 82207400, "monthly": {"1월": 12175200, "2월": 20494400, "3월": 35052600, "4월": 42647000, "5월": 45878200, "6월": 40936600}, "monthly_prev": {"1월": 15110800, "2월": 29059000, "3월": 19195000, "4월": 16722000, "5월": 24396000, "6월": 27556000}, "monthly_new": {"1월": 7643400, "2월": 15142600, "3월": 25946800, "4월": 23754200, "5월": 26921600, "6월": 15568000}, "monthly_old": {"1월": 4531800, "2월": 5351800, "3월": 9105800, "4월": 18892800, "5월": 18956600, "6월": 25368600}, "months_active": 6, "active": true}, {"name": "의정부녹양MB", "channel": "C (대리점)", "manager": "양승일", "rank": 40, "total": 192631300, "monthly_avg": 32283578, "prev_year": 147839640, "growth": 30.3, "new_product": 4514600, "old_product": 188116700, "monthly": {"1월": 15198400, "2월": 16316200, "3월": 31496000, "4월": 48716000, "5월": 44683600, "6월": 36221100}, "monthly_prev": {"1월": 12739300, "2월": 14450640, "3월": 29383300, "4월": 41616400, "5월": 30084600, "6월": 19565400}, "monthly_new": {"1월": 0, "2월": 348600, "3월": 1955800, "4월": 1448800, "5월": 100200, "6월": 661200}, "monthly_old": {"1월": 15198400, "2월": 15967600, "3월": 29540200, "4월": 47267200, "5월": 44583400, "6월": 35559900}, "months_active": 6, "active": true}, {"name": "롯데파주MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 41, "total": 191447500, "monthly_avg": 32085182, "prev_year": 251315400, "growth": -23.82, "new_product": 12192200, "old_product": 179255300, "monthly": {"1월": 17022400, "2월": 15979600, "3월": 35974800, "4월": 53045400, "5월": 42512200, "6월": 26913100}, "monthly_prev": {"1월": 22987800, "2월": 24759800, "3월": 51948000, "4월": 48323200, "5월": 49116600, "6월": 54180000}, "monthly_new": {"1월": 2562000, "2월": 3522400, "3월": 3161000, "4월": 513000, "5월": 738600, "6월": 1695200}, "monthly_old": {"1월": 14460400, "2월": 12457200, "3월": 32813800, "4월": 52532400, "5월": 41773600, "6월": 25217900}, "months_active": 6, "active": true}, {"name": "대구성서MB", "channel": "C (대리점)", "manager": "양승일", "rank": 42, "total": 190424230, "monthly_avg": 31913690, "prev_year": 221488623, "growth": -14.03, "new_product": 120540599, "old_product": 69883631, "monthly": {"1월": 30863200, "2월": 24534450, "3월": 41607060, "4월": 24793670, "5월": 36706200, "6월": 31919650}, "monthly_prev": {"1월": 24393538, "2월": 21581164, "3월": 47495921, "4월": 46015750, "5월": 48371650, "6월": 33630600}, "monthly_new": {"1월": 20020400, "2월": 13047602, "3월": 30361860, "4월": 14770670, "5월": 23236817, "6월": 19103250}, "monthly_old": {"1월": 10842800, "2월": 11486848, "3월": 11245200, "4월": 10023000, "5월": 13469383, "6월": 12816400}, "months_active": 6, "active": true}, {"name": "현대신촌MB", "channel": "A (백화점)", "manager": "문지훈", "rank": 43, "total": 188656000, "monthly_avg": 31617348, "prev_year": 175081200, "growth": 7.75, "new_product": 146295400, "old_product": 42360600, "monthly": {"1월": 15907800, "2월": 12811240, "3월": 29538880, "4월": 52387880, "5월": 44971960, "6월": 33038240}, "monthly_prev": {"1월": 11876200, "2월": 20271000, "3월": 27697600, "4월": 30247400, "5월": 60044000, "6월": 24945000}, "monthly_new": {"1월": 15907800, "2월": 12811240, "3월": 24857080, "4월": 30076680, "5월": 29465360, "6월": 33177240}, "monthly_old": {"1월": 0, "2월": 0, "3월": 4681800, "4월": 22311200, "5월": 15506600, "6월": -139000}, "months_active": 6, "active": true}, {"name": "LF광양MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 44, "total": 184302300, "monthly_avg": 30887700, "prev_year": 102568330, "growth": 79.69, "new_product": 23082600, "old_product": 161219700, "monthly": {"1월": 21832200, "2월": 21021200, "3월": 38830500, "4월": 30268200, "5월": 40021500, "6월": 32328700}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 5803400, "5월": 50179530, "6월": 46585400}, "monthly_new": {"1월": 3227000, "2월": 5014800, "3월": 7287200, "4월": 974600, "5월": 2385200, "6월": 4193800}, "monthly_old": {"1월": 18605200, "2월": 16006400, "3월": 31543300, "4월": 29293600, "5월": 37636300, "6월": 28134900}, "months_active": 6, "active": true}, {"name": "삼패MB", "channel": "C (대리점)", "manager": "양승일", "rank": 45, "total": 176121020, "monthly_avg": 29516578, "prev_year": 249396360, "growth": -29.38, "new_product": 75255535, "old_product": 100865485, "monthly": {"1월": 12213000, "2월": 20139250, "3월": 43762000, "4월": 41435600, "5월": 28036620, "6월": 30534550}, "monthly_prev": {"1월": 16219000, "2월": 14570850, "3월": 59893764, "4월": 53573750, "5월": 53772396, "6월": 51366600}, "monthly_new": {"1월": 6729800, "2월": 9253735, "3월": 16884800, "4월": 19033600, "5월": 7515000, "6월": 15838600}, "monthly_old": {"1월": 5483200, "2월": 10885515, "3월": 26877200, "4월": 22402000, "5월": 20521620, "6월": 14695950}, "months_active": 6, "active": true}, {"name": "롯데월드컵MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 46, "total": 173832700, "monthly_avg": 29133072, "prev_year": 223976400, "growth": -22.39, "new_product": 10563600, "old_product": 163269100, "monthly": {"1월": 24009400, "2월": 15643200, "3월": 30751900, "4월": 33053700, "5월": 50036400, "6월": 20338100}, "monthly_prev": {"1월": 21167400, "2월": 22389400, "3월": 36614200, "4월": 61733600, "5월": 42544000, "6월": 39527800}, "monthly_new": {"1월": 2181200, "2월": 2773400, "3월": 2012800, "4월": 89600, "5월": 1390000, "6월": 2116600}, "monthly_old": {"1월": 21828200, "2월": 12869800, "3월": 28739100, "4월": 32964100, "5월": 48646400, "6월": 18221500}, "months_active": 6, "active": true}, {"name": "첼시제주MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 47, "total": 172057300, "monthly_avg": 28835528, "prev_year": 202384400, "growth": -14.98, "new_product": 13712600, "old_product": 158344700, "monthly": {"1월": 21491600, "2월": 19488000, "3월": 21510800, "4월": 32947800, "5월": 43334600, "6월": 33284500}, "monthly_prev": {"1월": 25686200, "2월": 17957400, "3월": 31328800, "4월": 44744200, "5월": 52547400, "6월": 30120400}, "monthly_new": {"1월": 2549400, "2월": 5801600, "3월": 2186000, "4월": 22400, "5월": 1604400, "6월": 1548800}, "monthly_old": {"1월": 18942200, "2월": 13686400, "3월": 19324800, "4월": 32925400, "5월": 41730200, "6월": 31735700}, "months_active": 6, "active": true}, {"name": "구미MB", "channel": "C (대리점)", "manager": "양승일", "rank": 48, "total": 165449400, "monthly_avg": 27728093, "prev_year": 114324119, "growth": 44.72, "new_product": 81315628, "old_product": 84133772, "monthly": {"1월": 19109120, "2월": 16432910, "3월": 32033000, "4월": 25074470, "5월": 40183870, "6월": 32616030}, "monthly_prev": {"1월": 3358500, "2월": 4244650, "3월": 8570000, "4월": 12255113, "5월": 15093650, "6월": 70802206}, "monthly_new": {"1월": 7246382, "2월": 6640822, "3월": 19282800, "4월": 11954063, "5월": 16635860, "6월": 19555701}, "monthly_old": {"1월": 11862738, "2월": 9792088, "3월": 12750200, "4월": 13120407, "5월": 23548010, "6월": 13060329}, "months_active": 6, "active": true}, {"name": "문정MB", "channel": "C (대리점)", "manager": "양승일", "rank": 49, "total": 163121550, "monthly_avg": 27337963, "prev_year": 294812756, "growth": -44.67, "new_product": 64422533, "old_product": 98699017, "monthly": {"1월": 15794000, "2월": 11029200, "3월": 32861600, "4월": 28885700, "5월": 47208020, "6월": 27343030}, "monthly_prev": {"1월": 25218433, "2월": 26937978, "3월": 46215600, "4월": 73373889, "5월": 72852039, "6월": 50214817}, "monthly_new": {"1월": 7582400, "2월": 1905800, "3월": 14864800, "4월": 8506000, "5월": 21545400, "6월": 10018133}, "monthly_old": {"1월": 8211600, "2월": 9123400, "3월": 17996800, "4월": 20379700, "5월": 25662620, "6월": 17324897}, "months_active": 6, "active": true}, {"name": "롯데광복MB", "channel": "A (백화점)", "manager": "공진규", "rank": 50, "total": 162051120, "monthly_avg": 27158567, "prev_year": 161840000, "growth": 0.13, "new_product": 162737720, "old_product": -686600, "monthly": {"1월": 23069960, "2월": 23163600, "3월": 27337200, "4월": 31015680, "5월": 30016360, "6월": 27448320}, "monthly_prev": {"1월": 27265000, "2월": 21025000, "3월": 27019000, "4월": 28041000, "5월": 28295000, "6월": 30195000}, "monthly_new": {"1월": 23069960, "2월": 23163600, "3월": 27337200, "4월": 31702280, "5월": 30016360, "6월": 27448320}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": -686600, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "롯데창원MB", "channel": "A (백화점)", "manager": "공진규", "rank": 52, "total": 158634960, "monthly_avg": 26586044, "prev_year": 134127000, "growth": 18.27, "new_product": 158634960, "old_product": 0, "monthly": {"1월": 18466040, "2월": 12944640, "3월": 40023640, "4월": 30831760, "5월": 28439880, "6월": 27929000}, "monthly_prev": {"1월": 10372000, "2월": 16422400, "3월": 23175000, "4월": 30116800, "5월": 26214800, "6월": 27826000}, "monthly_new": {"1월": 18466040, "2월": 12944640, "3월": 40023640, "4월": 30831760, "5월": 28439880, "6월": 27929000}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "순천연향MB", "channel": "C (대리점)", "manager": "양승일", "rank": 53, "total": 155385983, "monthly_avg": 26041539, "prev_year": 177141110, "growth": -12.28, "new_product": 82154190, "old_product": 73231793, "monthly": {"1월": 23965043, "2월": 18854400, "3월": 25018840, "4월": 31028500, "5월": 31986300, "6월": 24532900}, "monthly_prev": {"1월": 14519900, "2월": 12681516, "3월": 23230855, "4월": 27659600, "5월": 33372815, "6월": 65676424}, "monthly_new": {"1월": 13133000, "2월": 9129800, "3월": 17090240, "4월": 23829000, "5월": 10450200, "6월": 8521950}, "monthly_old": {"1월": 10832043, "2월": 9724600, "3월": 7928600, "4월": 7199500, "5월": 21536100, "6월": 16010950}, "months_active": 6, "active": true}, {"name": "애경분당MB", "channel": "A (백화점)", "manager": "공진규", "rank": 54, "total": 151873080, "monthly_avg": 25452803, "prev_year": 117703600, "growth": 29.03, "new_product": 151873080, "old_product": 0, "monthly": {"1월": 11228000, "2월": 17042920, "3월": 26177520, "4월": 40374240, "5월": 33385320, "6월": 23665080}, "monthly_prev": {"1월": 6685800, "2월": 5183800, "3월": 13245200, "4월": 30728000, "5월": 30003000, "6월": 31857800}, "monthly_new": {"1월": 11228000, "2월": 17042920, "3월": 26177520, "4월": 40374240, "5월": 33385320, "6월": 23665080}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "신세계마산MB", "channel": "A (백화점)", "manager": "문지훈", "rank": 55, "total": 150249700, "monthly_avg": 25180736, "prev_year": 144077310, "growth": 4.28, "new_product": 150552100, "old_product": -302400, "monthly": {"1월": 18435080, "2월": 19156100, "3월": 31145840, "4월": 30127000, "5월": 30465400, "6월": 20920280}, "monthly_prev": {"1월": 12733000, "2월": 10879600, "3월": 29051510, "4월": 29190000, "5월": 31753000, "6월": 30470200}, "monthly_new": {"1월": 18435080, "2월": 19156100, "3월": 31145840, "4월": 30127000, "5월": 30465400, "6월": 21222680}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": -302400}, "months_active": 6, "active": true}, {"name": "롯데울산MB", "channel": "A (백화점)", "manager": "공진규", "rank": 56, "total": 147972000, "monthly_avg": 24799011, "prev_year": 128992800, "growth": 14.71, "new_product": 147972000, "old_product": 0, "monthly": {"1월": 13556680, "2월": 21088880, "3월": 28786200, "4월": 26865000, "5월": 35552360, "6월": 22122880}, "monthly_prev": {"1월": 12930000, "2월": 12374400, "3월": 19001200, "4월": 24054000, "5월": 39956800, "6월": 20676400}, "monthly_new": {"1월": 13556680, "2월": 21088880, "3월": 28786200, "4월": 26865000, "5월": 35552360, "6월": 22122880}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "현대킨텍스MB", "channel": "A (백화점)", "manager": "문지훈", "rank": 57, "total": 143338800, "monthly_avg": 24022521, "prev_year": 147169200, "growth": -2.6, "new_product": 142690800, "old_product": 648000, "monthly": {"1월": 13805600, "2월": 11632000, "3월": 29381600, "4월": 35014000, "5월": 30772600, "6월": 22733000}, "monthly_prev": {"1월": 12949400, "2월": 15664600, "3월": 27112400, "4월": 27885200, "5월": 28653000, "6월": 34904600}, "monthly_new": {"1월": 13805600, "2월": 10984000, "3월": 29381600, "4월": 35014000, "5월": 30772600, "6월": 22733000}, "monthly_old": {"1월": 0, "2월": 648000, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "롯데평촌MB", "channel": "A (백화점)", "manager": "공진규", "rank": 58, "total": 143115850, "monthly_avg": 23985156, "prev_year": 126283000, "growth": 13.33, "new_product": 143115850, "old_product": 0, "monthly": {"1월": 11544720, "2월": 10222960, "3월": 33075320, "4월": 32304520, "5월": 36659800, "6월": 19308530}, "monthly_prev": {"1월": 4426000, "2월": 4216000, "3월": 24852000, "4월": 33021000, "5월": 32009200, "6월": 27758800}, "monthly_new": {"1월": 11544720, "2월": 10222960, "3월": 33075320, "4월": 32304520, "5월": 36659800, "6월": 19308530}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "갤/타임MB", "channel": "A (백화점)", "manager": "공진규", "rank": 59, "total": 141716160, "monthly_avg": 23750578, "prev_year": 178472520, "growth": -20.59, "new_product": 141716160, "old_product": 0, "monthly": {"1월": 11450000, "2월": 18773700, "3월": 26748720, "4월": 32154100, "5월": 26158560, "6월": 26431080}, "monthly_prev": {"1월": 11407200, "2월": 22267000, "3월": 30470000, "4월": 42529720, "5월": 36367000, "6월": 35431600}, "monthly_new": {"1월": 11450000, "2월": 18773700, "3월": 26748720, "4월": 32154100, "5월": 26158560, "6월": 26431080}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "현대가든MB(아울렛)", "channel": "H (아울렛)", "manager": "정병식", "rank": 60, "total": 139995620, "monthly_avg": 23462228, "prev_year": 0, "growth": 0, "new_product": 5589200, "old_product": 134406420, "monthly": {"1월": 11007000, "2월": 10883800, "3월": 21550800, "4월": 35295100, "5월": 33162920, "6월": 28096000}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 529200, "2월": 1128400, "3월": 1386000, "4월": 0, "5월": 102600, "6월": 2443000}, "monthly_old": {"1월": 10477800, "2월": 9755400, "3월": 20164800, "4월": 35295100, "5월": 33060320, "6월": 25653000}, "months_active": 6, "active": true}, {"name": "롯데동탄MB", "channel": "A (백화점)", "manager": "공진규", "rank": 61, "total": 139138060, "monthly_avg": 23318508, "prev_year": 122532600, "growth": 13.55, "new_product": 139700660, "old_product": -562600, "monthly": {"1월": 10406240, "2월": 18554600, "3월": 24270760, "4월": 27762440, "5월": 38118580, "6월": 20025440}, "monthly_prev": {"1월": 13074800, "2월": 13643000, "3월": 15873200, "4월": 18024600, "5월": 34889400, "6월": 27027600}, "monthly_new": {"1월": 10406240, "2월": 18554600, "3월": 24270760, "4월": 28013040, "5월": 38430580, "6월": 20025440}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": -250600, "5월": -312000, "6월": 0}, "months_active": 6, "active": true}, {"name": "현대중동MB", "channel": "A (백화점)", "manager": "문지훈", "rank": 62, "total": 134572640, "monthly_avg": 22553377, "prev_year": 149409400, "growth": -9.93, "new_product": 129498840, "old_product": 5073800, "monthly": {"1월": 13032600, "2월": 13197000, "3월": 29014000, "4월": 31628000, "5월": 26214520, "6월": 21486520}, "monthly_prev": {"1월": 20490400, "2월": 10625800, "3월": 35130800, "4월": 32106400, "5월": 33443000, "6월": 17613000}, "monthly_new": {"1월": 13032600, "2월": 13197000, "3월": 29014000, "4월": 32276000, "5월": 20492720, "6월": 21486520}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": -648000, "5월": 5721800, "6월": 0}, "months_active": 6, "active": true}, {"name": "칠곡동명크리스아울렛(대)MB", "channel": "C (대리점)", "manager": "양승일", "rank": 63, "total": 134482700, "monthly_avg": 22538304, "prev_year": 135750300, "growth": -0.93, "new_product": 8261800, "old_product": 126220900, "monthly": {"1월": 19056000, "2월": 23987600, "3월": 27438800, "4월": 29079200, "5월": 19053700, "6월": 15867400}, "monthly_prev": {"1월": 16031800, "2월": 13899600, "3월": 27031400, "4월": 27731000, "5월": 26597400, "6월": 24459100}, "monthly_new": {"1월": 1887200, "2월": 194600, "3월": 3400600, "4월": 1090100, "5월": 404700, "6월": 1284600}, "monthly_old": {"1월": 17168800, "2월": 23793000, "3월": 24038200, "4월": 27989100, "5월": 18649000, "6월": 14582800}, "months_active": 6, "active": true}, {"name": "안산한대MB", "channel": "C (대리점)", "manager": "양승일", "rank": 64, "total": 133548580, "monthly_avg": 22381752, "prev_year": 139777692, "growth": -4.46, "new_product": 107923180, "old_product": 25625400, "monthly": {"1월": 19181100, "2월": 8730900, "3월": 24678920, "4월": 19511900, "5월": 28915700, "6월": 32530060}, "monthly_prev": {"1월": 10756628, "2월": 9745400, "3월": 29215406, "4월": 34796362, "5월": 33013322, "6월": 22250574}, "monthly_new": {"1월": 13996500, "2월": 6212700, "3월": 19748320, "4월": 17672700, "5월": 22167410, "6월": 28125550}, "monthly_old": {"1월": 5184600, "2월": 2518200, "3월": 4930600, "4월": 1839200, "5월": 6748290, "6월": 4404510}, "months_active": 6, "active": true}, {"name": "갤/센터시티MB", "channel": "A (백화점)", "manager": "공진규", "rank": 65, "total": 125173710, "monthly_avg": 20978186, "prev_year": 144950700, "growth": -13.64, "new_product": 124671000, "old_product": 502710, "monthly": {"1월": 16911150, "2월": 6710160, "3월": 32028960, "4월": 30138320, "5월": 13458240, "6월": 25926880}, "monthly_prev": {"1월": 13317000, "2월": 13738000, "3월": 30099400, "4월": 30011700, "5월": 32235000, "6월": 25549600}, "monthly_new": {"1월": 16408440, "2월": 6710160, "3월": 32028960, "4월": 30138320, "5월": 13458240, "6월": 25926880}, "monthly_old": {"1월": 502710, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "현대천호MB", "channel": "A (백화점)", "manager": "문지훈", "rank": 66, "total": 124353720, "monthly_avg": 20840762, "prev_year": 193146600, "growth": -35.62, "new_product": 124731720, "old_product": -378000, "monthly": {"1월": 10032600, "2월": 12098240, "3월": 24381200, "4월": 20401960, "5월": 30407720, "6월": 27032000}, "monthly_prev": {"1월": 11370800, "2월": 18232000, "3월": 30314200, "4월": 46056200, "5월": 51882000, "6월": 35291400}, "monthly_new": {"1월": 10032600, "2월": 12098240, "3월": 24381200, "4월": 20401960, "5월": 30407720, "6월": 27410000}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": -378000}, "months_active": 6, "active": true}, {"name": "김포장기MB", "channel": "C (대리점)", "manager": "양승일", "rank": 67, "total": 120076280, "monthly_avg": 20123895, "prev_year": 117954945, "growth": 1.8, "new_product": 72207949, "old_product": 47868331, "monthly": {"1월": 8624110, "2월": 7345900, "3월": 31601670, "4월": 18638270, "5월": 31214590, "6월": 22651740}, "monthly_prev": {"1월": 5858445, "2월": 13586420, "3월": 22346874, "4월": 21764578, "5월": 30594352, "6월": 23804276}, "monthly_new": {"1월": 5594980, "2월": 5197500, "3월": 17081674, "4월": 9435980, "5월": 19777275, "6월": 15120540}, "monthly_old": {"1월": 3029130, "2월": 2148400, "3월": 14519996, "4월": 9202290, "5월": 11437315, "6월": 7531200}, "months_active": 6, "active": true}, {"name": "현대부산MB(아울렛)", "channel": "H (아울렛)", "manager": "정병식", "rank": 68, "total": 119962500, "monthly_avg": 20104826, "prev_year": 133912800, "growth": -10.42, "new_product": 12040000, "old_product": 107922500, "monthly": {"1월": 14710400, "2월": 16835600, "3월": 23320800, "4월": 22457200, "5월": 27878000, "6월": 14760500}, "monthly_prev": {"1월": 16335400, "2월": 18026600, "3월": 23251400, "4월": 21188000, "5월": 31901200, "6월": 23210200}, "monthly_new": {"1월": 870800, "2월": 4769800, "3월": 3243200, "4월": 144000, "5월": 1190800, "6월": 1821400}, "monthly_old": {"1월": 13839600, "2월": 12065800, "3월": 20077600, "4월": 22313200, "5월": 26687200, "6월": 12939100}, "months_active": 6, "active": true}, {"name": "AK수원MB", "channel": "A (백화점)", "manager": "공진규", "rank": 69, "total": 118427000, "monthly_avg": 19847487, "prev_year": 142689600, "growth": -17.0, "new_product": 118521400, "old_product": -94400, "monthly": {"1월": 12821600, "2월": 14833000, "3월": 30109880, "4월": 17280600, "5월": 28858080, "6월": 14523840}, "monthly_prev": {"1월": 15311000, "2월": 11664000, "3월": 26757000, "4월": 32095200, "5월": 25948000, "6월": 30914400}, "monthly_new": {"1월": 12916000, "2월": 14833000, "3월": 30109880, "4월": 17280600, "5월": 28858080, "6월": 14523840}, "monthly_old": {"1월": -94400, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "롯데수원MB", "channel": "A (백화점)", "manager": "공진규", "rank": 70, "total": 117518320, "monthly_avg": 19695199, "prev_year": 111792400, "growth": 5.12, "new_product": 117518320, "old_product": 0, "monthly": {"1월": 11856000, "2월": 15452960, "3월": 23487760, "4월": 25044400, "5월": 23780200, "6월": 17897000}, "monthly_prev": {"1월": 6794400, "2월": 10210600, "3월": 21105800, "4월": 24786600, "5월": 27300600, "6월": 21594400}, "monthly_new": {"1월": 11856000, "2월": 15452960, "3월": 23487760, "4월": 25044400, "5월": 23780200, "6월": 17897000}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "롯데동래MB", "channel": "A (백화점)", "manager": "공진규", "rank": 71, "total": 115260800, "monthly_avg": 19316856, "prev_year": 85373070, "growth": 35.01, "new_product": 115260800, "old_product": 0, "monthly": {"1월": 5448000, "2월": 10548000, "3월": 15958000, "4월": 22842000, "5월": 38006800, "6월": 22458000}, "monthly_prev": {"1월": 15320000, "2월": 7678000, "3월": 14470000, "4월": 16679000, "5월": 15268000, "6월": 15958070}, "monthly_new": {"1월": 5448000, "2월": 10548000, "3월": 15958000, "4월": 22842000, "5월": 38006800, "6월": 22458000}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "덕평팩토리MB", "channel": "C (대리점)", "manager": "정병식", "rank": 72, "total": 114613100, "monthly_avg": 19208306, "prev_year": 125313200, "growth": -8.54, "new_product": 59166200, "old_product": 55446900, "monthly": {"1월": 11385200, "2월": 14479600, "3월": 24940200, "4월": 21130400, "5월": 24881900, "6월": 17795800}, "monthly_prev": {"1월": 7802600, "2월": 13719400, "3월": 28197400, "4월": 26425000, "5월": 33183600, "6월": 15985200}, "monthly_new": {"1월": 5874600, "2월": 9568000, "3월": 14592600, "4월": 10150000, "5월": 12516000, "6월": 6465000}, "monthly_old": {"1월": 5510600, "2월": 4911600, "3월": 10347600, "4월": 10980400, "5월": 12365900, "6월": 11330800}, "months_active": 6, "active": true}, {"name": "롯데진주MB(아울렛)", "channel": "H (아울렛)", "manager": "김창균", "rank": 73, "total": 113829900, "monthly_avg": 19077048, "prev_year": 0, "growth": 0, "new_product": 11803800, "old_product": 102026100, "monthly": {"1월": 15049600, "2월": 15018000, "3월": 22556800, "4월": 19423300, "5월": 25646500, "6월": 16135700}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 2293200, "2월": 3085600, "3월": 3633000, "4월": 797800, "5월": 195400, "6월": 1798800}, "monthly_old": {"1월": 12756400, "2월": 11932400, "3월": 18923800, "4월": 18625500, "5월": 25451100, "6월": 14336900}, "months_active": 6, "active": true}, {"name": "신논현직영MB", "channel": "B (직영점)", "manager": "정병식", "rank": 74, "total": 112947900, "monthly_avg": 18929231, "prev_year": 107409010, "growth": 5.16, "new_product": 112075700, "old_product": 872200, "monthly": {"1월": 9051000, "2월": 6271800, "3월": 26165800, "4월": 36315200, "5월": 17293700, "6월": 17850400}, "monthly_prev": {"1월": 8317400, "2월": 6158700, "3월": 14838310, "4월": 26824100, "5월": 26429000, "6월": 24841500}, "monthly_new": {"1월": 9051000, "2월": 6271800, "3월": 25293600, "4월": 36315200, "5월": 17293700, "6월": 17850400}, "monthly_old": {"1월": 0, "2월": 0, "3월": 872200, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "수원영통MB", "channel": "C (대리점)", "manager": "양승일", "rank": 75, "total": 112135170, "monthly_avg": 22591938, "prev_year": 0, "growth": 0, "new_product": 75336725, "old_product": 36798445, "monthly": {"1월": 0, "2월": 5116000, "3월": 23642470, "4월": 31746350, "5월": 30068850, "6월": 21561500}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 3489400, "3월": 18758765, "4월": 22364950, "5월": 17276110, "6월": 13447500}, "monthly_old": {"1월": 0, "2월": 1626600, "3월": 4883705, "4월": 9381400, "5월": 12792740, "6월": 8114000}, "months_active": 5, "active": true}, {"name": "대구수성못MB", "channel": "C (대리점)", "manager": "양승일", "rank": 76, "total": 110842850, "monthly_avg": 18576440, "prev_year": 155523085, "growth": -28.73, "new_product": 50371469, "old_product": 60471381, "monthly": {"1월": 10126970, "2월": 11770300, "3월": 19612010, "4월": 20154650, "5월": 30444920, "6월": 18734000}, "monthly_prev": {"1월": 15969528, "2월": 8998762, "3월": 35962398, "4월": 36478094, "5월": 30948564, "6월": 27165739}, "monthly_new": {"1월": 4430770, "2월": 4578600, "3월": 10755529, "4월": 11154150, "5월": 10648211, "6월": 8804209}, "monthly_old": {"1월": 5696200, "2월": 7191700, "3월": 8856481, "4월": 9000500, "5월": 19796709, "6월": 9929791}, "months_active": 6, "active": true}, {"name": "화성봉담MB", "channel": "C (대리점)", "manager": "양승일", "rank": 77, "total": 103149020, "monthly_avg": 17287011, "prev_year": 99276826, "growth": 3.9, "new_product": 69576702, "old_product": 33572318, "monthly": {"1월": 7841500, "2월": 9770050, "3월": 16684770, "4월": 25155400, "5월": 23786510, "6월": 19910790}, "monthly_prev": {"1월": 13598400, "2월": 9673953, "3월": 21947250, "4월": 15386720, "5월": 18711232, "6월": 19959271}, "monthly_new": {"1월": 5593500, "2월": 6129170, "3월": 10605671, "4월": 14341410, "5월": 16887429, "6월": 16019522}, "monthly_old": {"1월": 2248000, "2월": 3640880, "3월": 6079099, "4월": 10813990, "5월": 6899081, "6월": 3891268}, "months_active": 6, "active": true}, {"name": "군산수송MB", "channel": "C (대리점)", "manager": "양승일", "rank": 78, "total": 102642540, "monthly_avg": 17202129, "prev_year": 149230882, "growth": -31.22, "new_product": 76402594, "old_product": 26239946, "monthly": {"1월": 10163040, "2월": 13108770, "3월": 19993460, "4월": 25755540, "5월": 13914620, "6월": 19707110}, "monthly_prev": {"1월": 11421182, "2월": 13672371, "3월": 37579876, "4월": 38544914, "5월": 30112832, "6월": 17899707}, "monthly_new": {"1월": 8717397, "2월": 10433891, "3월": 16965697, "4월": 15236693, "5월": 9438300, "6월": 15610616}, "monthly_old": {"1월": 1445643, "2월": 2674879, "3월": 3027763, "4월": 10518847, "5월": 4476320, "6월": 4096494}, "months_active": 6, "active": true}, {"name": "롯데전주MB", "channel": "A (백화점)", "manager": "공진규", "rank": 79, "total": 102442260, "monthly_avg": 17168563, "prev_year": 116502800, "growth": -12.07, "new_product": 101856220, "old_product": 586040, "monthly": {"1월": 11052080, "2월": 15250500, "3월": 21825720, "4월": 19019980, "5월": 20684840, "6월": 14609140}, "monthly_prev": {"1월": 14603600, "2월": 15214400, "3월": 18159800, "4월": 21457200, "5월": 24219000, "6월": 22848800}, "monthly_new": {"1월": 11052080, "2월": 14664460, "3월": 21825720, "4월": 19019980, "5월": 20684840, "6월": 14609140}, "monthly_old": {"1월": 0, "2월": 586040, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "갤/진주MB", "channel": "A (백화점)", "manager": "공진규", "rank": 80, "total": 100144960, "monthly_avg": 16783553, "prev_year": 123664000, "growth": -19.02, "new_product": 100144960, "old_product": 0, "monthly": {"1월": 17577400, "2월": 10280400, "3월": 20109480, "4월": 17692680, "5월": 18317640, "6월": 16167360}, "monthly_prev": {"1월": 18889000, "2월": 10236000, "3월": 17474000, "4월": 25343000, "5월": 25006000, "6월": 26716000}, "monthly_new": {"1월": 17577400, "2월": 10280400, "3월": 20109480, "4월": 17692680, "5월": 18317640, "6월": 16167360}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "신세계김해MB", "channel": "A (백화점)", "manager": "문지훈", "rank": 81, "total": 98004540, "monthly_avg": 16424834, "prev_year": 105462600, "growth": -7.07, "new_product": 98352540, "old_product": -348000, "monthly": {"1월": 12961000, "2월": 13115800, "3월": 17040840, "4월": 16218000, "5월": 21191900, "6월": 17477000}, "monthly_prev": {"1월": 11598800, "2월": 12166800, "3월": 15640000, "4월": 23575200, "5월": 20417000, "6월": 22064800}, "monthly_new": {"1월": 12961000, "2월": 13115800, "3월": 17040840, "4월": 16218000, "5월": 21539900, "6월": 17477000}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": -348000, "6월": 0}, "months_active": 6, "active": true}, {"name": "모다오산MB", "channel": "C (대리점)", "manager": "양승일", "rank": 82, "total": 97702540, "monthly_avg": 16374221, "prev_year": 165157177, "growth": -40.84, "new_product": 37888469, "old_product": 59814071, "monthly": {"1월": 8664400, "2월": 9479740, "3월": 26290700, "4월": 16658310, "5월": 19927300, "6월": 16682090}, "monthly_prev": {"1월": 10529200, "2월": 20453077, "3월": 36196600, "4월": 39304300, "5월": 29131600, "6월": 29542400}, "monthly_new": {"1월": 1473200, "2월": 3406125, "3월": 12936165, "4월": 4946354, "5월": 8002900, "6월": 7123725}, "monthly_old": {"1월": 7191200, "2월": 6073615, "3월": 13354535, "4월": 11711956, "5월": 11924400, "6월": 9558365}, "months_active": 6, "active": true}, {"name": "현대미아MB", "channel": "A (백화점)", "manager": "문지훈", "rank": 83, "total": 95981360, "monthly_avg": 16085764, "prev_year": 86222800, "growth": 11.32, "new_product": 95981360, "old_product": 0, "monthly": {"1월": 8898000, "2월": 8590800, "3월": 13684000, "4월": 27635000, "5월": 22162720, "6월": 15010840}, "monthly_prev": {"1월": 8882000, "2월": 8615800, "3월": 11439600, "4월": 20904400, "5월": 20208000, "6월": 16173000}, "monthly_new": {"1월": 8898000, "2월": 8590800, "3월": 13684000, "4월": 27635000, "5월": 22162720, "6월": 15010840}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "롯데청량리MB", "channel": "A (백화점)", "manager": "공진규", "rank": 84, "total": 94624160, "monthly_avg": 15858308, "prev_year": 86690000, "growth": 9.15, "new_product": 94624160, "old_product": 0, "monthly": {"1월": 5032000, "2월": 4354000, "3월": 22841000, "4월": 25082000, "5월": 20572200, "6월": 16742960}, "monthly_prev": {"1월": 10100000, "2월": 5003000, "3월": 21232000, "4월": 16003000, "5월": 15120000, "6월": 19232000}, "monthly_new": {"1월": 5032000, "2월": 4354000, "3월": 22841000, "4월": 25082000, "5월": 20572200, "6월": 16742960}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 6, "active": true}, {"name": "죽전MB", "channel": "C (대리점)", "manager": "양승일", "rank": 85, "total": 92914450, "monthly_avg": 15571773, "prev_year": 142161070, "growth": -34.64, "new_product": 56966368, "old_product": 35948082, "monthly": {"1월": 13548500, "2월": 13193800, "3월": 21727400, "4월": 14970640, "5월": 18590040, "6월": 10884070}, "monthly_prev": {"1월": 10150450, "2월": 16584200, "3월": 34087600, "4월": 24083050, "5월": 26957670, "6월": 30298100}, "monthly_new": {"1월": 9426558, "2월": 9472000, "3월": 12555000, "4월": 8385725, "5월": 9131700, "6월": 7995385}, "monthly_old": {"1월": 4121942, "2월": 3721800, "3월": 9172400, "4월": 6584915, "5월": 9458340, "6월": 2888685}, "months_active": 6, "active": true}, {"name": "녹산MB", "channel": "C (대리점)", "manager": "양승일", "rank": 86, "total": 92807190, "monthly_avg": 15553797, "prev_year": 65809851, "growth": 41.02, "new_product": 53967178, "old_product": 38840012, "monthly": {"1월": 5088000, "2월": 16462170, "3월": 17124880, "4월": 16404110, "5월": 23146240, "6월": 14581790}, "monthly_prev": {"1월": 7987051, "2월": 3113200, "3월": 10352900, "4월": 16084700, "5월": 13942400, "6월": 14329600}, "monthly_new": {"1월": 2144200, "2월": 7299373, "3월": 10183400, "4월": 10602255, "5월": 13605480, "6월": 10132470}, "monthly_old": {"1월": 2943800, "2월": 9162797, "3월": 6941480, "4월": 5801855, "5월": 9540760, "6월": 4449320}, "months_active": 6, "active": true}, {"name": "전주중화산MB", "channel": "C (대리점)", "manager": "양승일", "rank": 87, "total": 91178070, "monthly_avg": 15280769, "prev_year": 103522631, "growth": -11.92, "new_product": 52819036, "old_product": 38359034, "monthly": {"1월": 9242400, "2월": 5883800, "3월": 20585400, "4월": 17951150, "5월": 19226120, "6월": 18289200}, "monthly_prev": {"1월": 8048400, "2월": 10320827, "3월": 21904135, "4월": 24689532, "5월": 22952250, "6월": 15607487}, "monthly_new": {"1월": 6073400, "2월": 4695400, "3월": 15794200, "4월": 8416350, "5월": 9574186, "6월": 8265500}, "monthly_old": {"1월": 3169000, "2월": 1188400, "3월": 4791200, "4월": 9534800, "5월": 9651934, "6월": 10023700}, "months_active": 6, "active": true}, {"name": "곤지암직영MB", "channel": "B (직영점)", "manager": "정병식", "rank": 88, "total": 74188900, "monthly_avg": 12433510, "prev_year": 111064100, "growth": -33.2, "new_product": 4425800, "old_product": 69763100, "monthly": {"1월": 6732800, "2월": 7422400, "3월": 21500600, "4월": 14985800, "5월": 10935700, "6월": 12611600}, "monthly_prev": {"1월": 14178800, "2월": 9920600, "3월": 23223100, "4월": 23884000, "5월": 23777200, "6월": 16080400}, "monthly_new": {"1월": 278600, "2월": 1051400, "3월": 2179600, "4월": 345400, "5월": 570800, "6월": 0}, "monthly_old": {"1월": 6454200, "2월": 6371000, "3월": 19321000, "4월": 14640400, "5월": 10364900, "6월": 12611600}, "months_active": 6, "active": true}, {"name": "안성MB", "channel": "C (대리점)", "manager": "양승일", "rank": 89, "total": 72725960, "monthly_avg": 12188332, "prev_year": 104172447, "growth": -30.19, "new_product": 44202432, "old_product": 28523528, "monthly": {"1월": 6949800, "2월": 2872980, "3월": 6609040, "4월": 11039210, "5월": 25368890, "6월": 19886040}, "monthly_prev": {"1월": 8100050, "2월": 10977600, "3월": 26319105, "4월": 25454200, "5월": 19296567, "6월": 14024925}, "monthly_new": {"1월": 6067600, "2월": 1468380, "3월": 5266240, "4월": 5305198, "5월": 14385405, "6월": 11709609}, "monthly_old": {"1월": 882200, "2월": 1404600, "3월": 1342800, "4월": 5734012, "5월": 10983485, "6월": 8176431}, "months_active": 6, "active": true}, {"name": "현대동구MB(아울렛)", "channel": "H (아울렛)", "manager": "정병식", "rank": 90, "total": 71394000, "monthly_avg": 11965105, "prev_year": 44022000, "growth": 62.18, "new_product": 15227200, "old_product": 56166800, "monthly": {"1월": 7412000, "2월": 7370600, "3월": 14648000, "4월": 14712900, "5월": 16673100, "6월": 10577400}, "monthly_prev": {"1월": 3813800, "2월": 2505400, "3월": 7366600, "4월": 10110600, "5월": 11057400, "6월": 9168200}, "monthly_new": {"1월": 2724400, "2월": 3399200, "3월": 3610000, "4월": 393400, "5월": 1941800, "6월": 3158400}, "monthly_old": {"1월": 4687600, "2월": 3971400, "3월": 11038000, "4월": 14319500, "5월": 14731300, "6월": 7419000}, "months_active": 6, "active": true}, {"name": "울산무거직영MB", "channel": "B (직영점)", "manager": "양승일", "rank": 91, "total": 63735050, "monthly_avg": 10681522, "prev_year": 73623805, "growth": -13.43, "new_product": 32553881, "old_product": 31181169, "monthly": {"1월": 7007900, "2월": 3613680, "3월": 17626970, "4월": 11440200, "5월": 13471300, "6월": 10575000}, "monthly_prev": {"1월": 7066400, "2월": 6045340, "3월": 17581994, "4월": 18240960, "5월": 13415887, "6월": 11273224}, "monthly_new": {"1월": 3115100, "2월": 1073500, "3월": 7298970, "4월": 7368600, "5월": 7939311, "6월": 5758400}, "monthly_old": {"1월": 3892800, "2월": 2540180, "3월": 10328000, "4월": 4071600, "5월": 5531989, "6월": 4816600}, "months_active": 6, "active": true}, {"name": "서수원MB", "channel": "C (대리점)", "manager": "양승일", "rank": 92, "total": 62642500, "monthly_avg": 10498418, "prev_year": 75657600, "growth": -17.2, "new_product": 1685600, "old_product": 60956900, "monthly": {"1월": 4693800, "2월": 7759600, "3월": 12641200, "4월": 11664000, "5월": 12673600, "6월": 13210300}, "monthly_prev": {"1월": 7558600, "2월": 8636000, "3월": 16171800, "4월": 14250400, "5월": 15816200, "6월": 13224600}, "monthly_new": {"1월": 0, "2월": 0, "3월": 501200, "4월": 84800, "5월": 57000, "6월": 1042600}, "monthly_old": {"1월": 4693800, "2월": 7759600, "3월": 12140000, "4월": 11579200, "5월": 12616600, "6월": 12167700}, "months_active": 6, "active": true}, {"name": "논현특판MB", "channel": "B (직영점)", "manager": "", "rank": 93, "total": 60279000, "monthly_avg": 10102313, "prev_year": 105261000, "growth": -42.73, "new_product": 5570000, "old_product": 54709000, "monthly": {"1월": 0, "2월": 27826000, "3월": 0, "4월": 4397000, "5월": 28056000, "6월": 0}, "monthly_prev": {"1월": 55153000, "2월": 100000, "3월": 0, "4월": 28905000, "5월": 21103000, "6월": 0}, "monthly_new": {"1월": 0, "2월": 690000, "3월": 0, "4월": 100000, "5월": 4780000, "6월": 0}, "monthly_old": {"1월": 0, "2월": 27136000, "3월": 0, "4월": 4297000, "5월": 23276000, "6월": 0}, "months_active": 3, "active": true}, {"name": "포천송우리(대)MB", "channel": "C (대리점)", "manager": "양승일", "rank": 94, "total": 59379920, "monthly_avg": 30335393, "prev_year": 0, "growth": 0, "new_product": 27119271, "old_product": 32260649, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 19054200, "6월": 40325720}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 9930700, "6월": 17188571}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 9123500, "6월": 23137149}, "months_active": 2, "active": false}, {"name": "천안쌍용직영MB", "channel": "B (직영점)", "manager": "양승일", "rank": 95, "total": 57217330, "monthly_avg": 14422550, "prev_year": 0, "growth": 0, "new_product": 43845472, "old_product": 13371858, "monthly": {"1월": 0, "2월": 0, "3월": 18305920, "4월": 15669400, "5월": 13686270, "6월": 9555740}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 13853720, "4월": 11455200, "5월": 10409812, "6월": 8126740}, "monthly_old": {"1월": 0, "2월": 0, "3월": 4452200, "4월": 4214200, "5월": 3276458, "6월": 1429000}, "months_active": 4, "active": true}, {"name": "도곡직영MB", "channel": "B (직영점)", "manager": "정병식", "rank": 96, "total": 56242600, "monthly_avg": 9425843, "prev_year": 73632180, "growth": -23.62, "new_product": 54355400, "old_product": 1887200, "monthly": {"1월": 2871400, "2월": 2760400, "3월": 6216800, "4월": 14151000, "5월": 15880000, "6월": 14363000}, "monthly_prev": {"1월": 2576400, "2월": 6566400, "3월": 22498180, "4월": 9956000, "5월": 26490200, "6월": 5545000}, "monthly_new": {"1월": 2871400, "2월": 2760400, "3월": 4953600, "4월": 14151000, "5월": 15256000, "6월": 14363000}, "monthly_old": {"1월": 0, "2월": 0, "3월": 1263200, "4월": 0, "5월": 624000, "6월": 0}, "months_active": 6, "active": true}, {"name": "여수MB", "channel": "C (대리점)", "manager": "양승일", "rank": 97, "total": 51728050, "monthly_avg": 8669238, "prev_year": 80887650, "growth": -36.05, "new_product": 35550221, "old_product": 16177829, "monthly": {"1월": 8253900, "2월": 7726800, "3월": 5471500, "4월": 13186950, "5월": 10630300, "6월": 6458600}, "monthly_prev": {"1월": 11586100, "2월": 5628200, "3월": 18966700, "4월": 12918600, "5월": 20017450, "6월": 11770600}, "monthly_new": {"1월": 6838700, "2월": 6453000, "3월": 3421900, "4월": 9512421, "5월": 4719600, "6월": 4604600}, "monthly_old": {"1월": 1415200, "2월": 1273800, "3월": 2049600, "4월": 3674529, "5월": 5910700, "6월": 1854000}, "months_active": 6, "active": true}, {"name": "해운대MB", "channel": "C (대리점)", "manager": "양승일", "rank": 98, "total": 49529620, "monthly_avg": 8300797, "prev_year": 42404887, "growth": 16.8, "new_product": 34627989, "old_product": 14901631, "monthly": {"1월": 6168140, "2월": 5025400, "3월": 8497790, "4월": 12446600, "5월": 6734700, "6월": 10656990}, "monthly_prev": {"1월": 10597030, "2월": 3301200, "3월": 4067340, "4월": 5181060, "5월": 7547907, "6월": 11710350}, "monthly_new": {"1월": 4435340, "2월": 2073600, "3월": 6288593, "4월": 8463960, "5월": 4982900, "6월": 8383596}, "monthly_old": {"1월": 1732800, "2월": 2951800, "3월": 2209197, "4월": 3982640, "5월": 1751800, "6월": 2273394}, "months_active": 6, "active": true}, {"name": "골프존", "channel": "Z (기타)", "manager": "", "rank": 99, "total": 48720000, "monthly_avg": 8165111, "prev_year": 0, "growth": 0, "new_product": 48720000, "old_product": 0, "monthly": {"1월": 0, "2월": 0, "3월": 25520000, "4월": 23200000, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 25520000, "4월": 23200000, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 2, "active": false}, {"name": "원주MB", "channel": "C (대리점)", "manager": "양승일", "rank": 100, "total": 45629900, "monthly_avg": 7647233, "prev_year": 41695911, "growth": 9.43, "new_product": 32184700, "old_product": 13445200, "monthly": {"1월": 1499800, "2월": 2667600, "3월": 15348600, "4월": 10412800, "5월": 7698500, "6월": 8002600}, "monthly_prev": {"1월": 2035200, "2월": 5460300, "3월": 3776200, "4월": 6704911, "5월": 16237200, "6월": 7482100}, "monthly_new": {"1월": 1245400, "2월": 1716800, "3월": 11131600, "4월": 7043400, "5월": 5965300, "6월": 5082200}, "monthly_old": {"1월": 254400, "2월": 950800, "3월": 4217000, "4월": 3369400, "5월": 1733200, "6월": 2920400}, "months_active": 6, "active": true}, {"name": "크리스밸리C.CMB", "channel": "C (대리점)", "manager": "정병식", "rank": 101, "total": 44592200, "monthly_avg": 7473322, "prev_year": 0, "growth": 0, "new_product": 44592200, "old_product": 0, "monthly": {"1월": 0, "2월": 1219200, "3월": 9172200, "4월": 8401800, "5월": 9217100, "6월": 16581900}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 1219200, "3월": 9172200, "4월": 8401800, "5월": 9217100, "6월": 16581900}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 5, "active": true}, {"name": "유니폼(매출)", "channel": "Z (기타)", "manager": "", "rank": 102, "total": 41431400, "monthly_avg": 6943595, "prev_year": 41832400, "growth": -0.96, "new_product": 32304000, "old_product": 9127400, "monthly": {"1월": 0, "2월": 7065000, "3월": 20066800, "4월": 1118400, "5월": 13181200, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 3302800, "3월": 24407400, "4월": 0, "5월": 14122200, "6월": 0}, "monthly_new": {"1월": 0, "2월": 4886400, "3월": 15354400, "4월": 1118400, "5월": 10944800, "6월": 0}, "monthly_old": {"1월": 0, "2월": 2178600, "3월": 4712400, "4월": 0, "5월": 2236400, "6월": 0}, "months_active": 4, "active": true}, {"name": "롯데부산특판(아이사지니)", "channel": "A (백화점)", "manager": "", "rank": 105, "total": 34710600, "monthly_avg": 5817239, "prev_year": 0, "growth": 0, "new_product": 0, "old_product": 34710600, "monthly": {"1월": 0, "2월": 0, "3월": 34710600, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 34710600, "4월": 0, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "설해원C.CMB", "channel": "C (대리점)", "manager": "정병식", "rank": 106, "total": 29388600, "monthly_avg": 4925311, "prev_year": 57451200, "growth": -48.85, "new_product": 24963200, "old_product": 4425400, "monthly": {"1월": 3439200, "2월": 2181000, "3월": 4242400, "4월": 5341200, "5월": 7602000, "6월": 6582800}, "monthly_prev": {"1월": 6138400, "2월": 7588000, "3월": 8092000, "4월": 12088400, "5월": 13575800, "6월": 9968600}, "monthly_new": {"1월": 3142600, "2월": 1586600, "3월": 3986000, "4월": 3889800, "5월": 6933600, "6월": 5424600}, "monthly_old": {"1월": 296600, "2월": 594400, "3월": 256400, "4월": 1451400, "5월": 668400, "6월": 1158200}, "months_active": 6, "active": true}, {"name": "롯데잠실특판(아이사지니)", "channel": "A (백화점)", "manager": "", "rank": 108, "total": 24068900, "monthly_avg": 4033769, "prev_year": 0, "growth": 0, "new_product": 0, "old_product": 24068900, "monthly": {"1월": 0, "2월": 0, "3월": 24068900, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 24068900, "4월": 0, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "H1C.CMB", "channel": "C (대리점)", "manager": "정병식", "rank": 109, "total": 22806600, "monthly_avg": 3822217, "prev_year": 19578700, "growth": 16.49, "new_product": 22806600, "old_product": 0, "monthly": {"1월": 0, "2월": 484000, "3월": 4102600, "4월": 8299200, "5월": 4733600, "6월": 5187200}, "monthly_prev": {"1월": 398000, "2월": 498000, "3월": 4956000, "4월": 5290000, "5월": 2990000, "6월": 5446700}, "monthly_new": {"1월": 0, "2월": 484000, "3월": 4102600, "4월": 8299200, "5월": 4733600, "6월": 5187200}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 5, "active": true}, {"name": "현대무역특판(아이사지니) ", "channel": "A (백화점)", "manager": "", "rank": 111, "total": 21237100, "monthly_avg": 3559180, "prev_year": 0, "growth": 0, "new_product": 0, "old_product": 21237100, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 21237100, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 21237100, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "대전스타일마켓MB", "channel": "H (아울렛)", "manager": "문지훈", "rank": 113, "total": 19942600, "monthly_avg": 3342232, "prev_year": 24997600, "growth": -20.22, "new_product": 3124400, "old_product": 16818200, "monthly": {"1월": 3235200, "2월": 2486600, "3월": 2486200, "4월": 4952000, "5월": 5159400, "6월": 1623200}, "monthly_prev": {"1월": 3233600, "2월": 1760000, "3월": 7034800, "4월": 7455400, "5월": 3925800, "6월": 1588000}, "monthly_new": {"1월": 627200, "2월": 389200, "3월": 543200, "4월": 1336600, "5월": 19600, "6월": 208600}, "monthly_old": {"1월": 2608000, "2월": 2097400, "3월": 1943000, "4월": 3615400, "5월": 5139800, "6월": 1414600}, "months_active": 6, "active": true}, {"name": "서서울C.CMB", "channel": "C (대리점)", "manager": "정병식", "rank": 114, "total": 19551600, "monthly_avg": 3276703, "prev_year": 17095600, "growth": 14.37, "new_product": 19551600, "old_product": 0, "monthly": {"1월": 0, "2월": 3377900, "3월": 4424400, "4월": 3583300, "5월": 5917900, "6월": 2248100}, "monthly_prev": {"1월": 880600, "2월": 646000, "3월": 2868800, "4월": 4158300, "5월": 2780200, "6월": 5761700}, "monthly_new": {"1월": 0, "2월": 3377900, "3월": 4424400, "4월": 3583300, "5월": 5917900, "6월": 2248100}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 5, "active": true}, {"name": "갤/광교특판(아이사지니)", "channel": "A (백화점)", "manager": "", "rank": 122, "total": 3293800, "monthly_avg": 832117, "prev_year": 0, "growth": 0, "new_product": 0, "old_product": 3293800, "monthly": {"1월": 0, "2월": 0, "3월": 3293800, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 3293800, "4월": 0, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "롯데인천특판(아이사지니)", "channel": "A (백화점)", "manager": "", "rank": 123, "total": 3190800, "monthly_avg": 1076730, "prev_year": 0, "growth": 0, "new_product": 0, "old_product": 3190800, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 3190800, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 3190800, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "국동", "channel": "Z (기타)", "manager": "", "rank": 124, "total": 3144000, "monthly_avg": 526911, "prev_year": 4004200, "growth": -21.48, "new_product": 1242000, "old_product": 1902000, "monthly": {"1월": 1124200, "2월": 0, "3월": 2019800, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 299400, "2월": 943600, "3월": 1389600, "4월": 798400, "5월": 534000, "6월": 39200}, "monthly_new": {"1월": 158000, "2월": 0, "3월": 1084000, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 966200, "2월": 0, "3월": 935800, "4월": 0, "5월": 0, "6월": 0}, "months_active": 2, "active": false}, {"name": "버킷스토어MB", "channel": "Z (기타)", "manager": "", "rank": 125, "total": 1914200, "monthly_avg": 320805, "prev_year": 3235800, "growth": -40.84, "new_product": 418000, "old_product": 1496200, "monthly": {"1월": 806800, "2월": 735000, "3월": 372400, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 1004200, "2월": 282800, "3월": 59000, "4월": 1116400, "5월": 463800, "6월": 309600}, "monthly_new": {"1월": 0, "2월": 418000, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 806800, "2월": 317000, "3월": 372400, "4월": 0, "5월": 0, "6월": 0}, "months_active": 3, "active": true}, {"name": "버킷스토어(온라인)MB", "channel": "Z (기타)", "manager": "", "rank": 126, "total": 1038000, "monthly_avg": 349844, "prev_year": 0, "growth": 0, "new_product": 0, "old_product": 1038000, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 551400, "5월": 0, "6월": 486600}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 551400, "5월": 0, "6월": 486600}, "months_active": 2, "active": false}, {"name": "LVF롯데택배분실건", "channel": "Z (기타)", "manager": "", "rank": 127, "total": 327855, "monthly_avg": 54946, "prev_year": 90327, "growth": 262.96, "new_product": 0, "old_product": 327855, "monthly": {"1월": 0, "2월": 0, "3월": 327855, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 90327, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 327855, "4월": 0, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "도곡직영특판MB", "channel": "B (직영점)", "manager": "", "rank": 138, "total": -79000, "monthly_avg": -13239, "prev_year": 0, "growth": 0, "new_product": 0, "old_product": -79000, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": -79000, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": -79000, "6월": 0}, "months_active": 0, "active": false}, {"name": "현대판교(도곡특판MM)", "channel": "A (백화점)", "manager": "", "rank": 51, "total": 158763000, "monthly_avg": 26607502, "prev_year": 46199800, "growth": 243.64, "new_product": 30814000, "old_product": 127949000, "monthly": {"1월": 0, "2월": 69559000, "3월": 0, "4월": 89204000, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 46199800, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 21414000, "3월": 0, "4월": 9400000, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 48145000, "3월": 0, "4월": 79804000, "5월": 0, "6월": 0}, "months_active": 2, "active": false}, {"name": "(폐점)현대무역(서울신문)", "channel": "A (백화점)", "manager": "", "rank": 103, "total": 41085000, "monthly_avg": 13872857, "prev_year": 0, "growth": 0, "new_product": 41085000, "old_product": 0, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 41085000, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 41085000, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "(●26폐점)고양벽제MB[3.31]", "channel": "C (대리점)", "manager": "", "rank": 104, "total": 36220490, "monthly_avg": 24281143, "prev_year": 106785970, "growth": -66.08, "new_product": 23304090, "old_product": 12916400, "monthly": {"1월": 3735200, "2월": 3646300, "3월": 28838990, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 10810407, "2월": 9734975, "3월": 24120200, "4월": 21186165, "5월": 20789795, "6월": 20144428}, "monthly_new": {"1월": 2103600, "2월": 1303900, "3월": 19896590, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 1631600, "2월": 2342400, "3월": 8942400, "4월": 0, "5월": 0, "6월": 0}, "months_active": 3, "active": true}, {"name": "현대스페이스원(논현특판ST)  ", "channel": "H (아울렛)", "manager": "", "rank": 107, "total": 26368000, "monthly_avg": 4419081, "prev_year": 0, "growth": 0, "new_product": 955000, "old_product": 25413000, "monthly": {"1월": 0, "2월": 14122000, "3월": 0, "4월": 12246000, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 565000, "3월": 0, "4월": 390000, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 13557000, "3월": 0, "4월": 11856000, "5월": 0, "6월": 0}, "months_active": 2, "active": false}, {"name": "(폐점)기흥휴게소직영MB-26.4/17", "channel": "C (대리점)", "manager": "", "rank": 110, "total": 21562400, "monthly_avg": 9118678, "prev_year": 40015600, "growth": -46.12, "new_product": 3166400, "old_product": 18396000, "monthly": {"1월": 3710400, "2월": 5434800, "3월": 8825600, "4월": 3591600, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 4163000, "2월": 2950800, "3월": 9496000, "4월": 6576400, "5월": 7946600, "6월": 8882800}, "monthly_new": {"1월": 264600, "2월": 1058400, "3월": 1843400, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 3445800, "2월": 4376400, "3월": 6982200, "4월": 3591600, "5월": 0, "6월": 0}, "months_active": 4, "active": true}, {"name": "도곡특판MB", "channel": "B (직영점)", "manager": "", "rank": 112, "total": 20959000, "monthly_avg": 3512573, "prev_year": 72074000, "growth": -70.92, "new_product": 1508000, "old_product": 19451000, "monthly": {"1월": 0, "2월": 20959000, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 71549000, "2월": 0, "3월": 0, "4월": 525000, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 1508000, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 19451000, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "현대판교(도곡특판MB)", "channel": "A (백화점)", "manager": "", "rank": 115, "total": 11347000, "monthly_avg": 1901673, "prev_year": 35652800, "growth": -68.17, "new_product": 960000, "old_product": 10387000, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 11347000, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 35652800, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 960000, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 10387000, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "롯데잠실(논현특판HD)", "channel": "A (백화점)", "manager": "", "rank": 116, "total": 8883000, "monthly_avg": 3000480, "prev_year": 0, "growth": 0, "new_product": 710000, "old_product": 8173000, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 8883000, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 710000, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 8173000, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "현대무역(논현특판MB)", "channel": "A (백화점)", "manager": "", "rank": 117, "total": 8059000, "monthly_avg": 1350628, "prev_year": 0, "growth": 0, "new_product": 2220000, "old_product": 5839000, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 1834000, "5월": 6225000, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 320000, "5월": 1900000, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 1514000, "5월": 4325000, "6월": 0}, "months_active": 2, "active": false}, {"name": "신세계광주(도곡특판HD)", "channel": "A (백화점)", "manager": "", "rank": 118, "total": 7634000, "monthly_avg": 2578595, "prev_year": 0, "growth": 0, "new_product": 860000, "old_product": 6774000, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 7634000, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 860000, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 6774000, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "신세계광주(덕평특판HD)", "channel": "A (백화점)", "manager": "", "rank": 119, "total": 5980000, "monthly_avg": 3064750, "prev_year": 0, "growth": 0, "new_product": 4570000, "old_product": 1410000, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 5980000, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 4570000, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 1410000, "6월": 0}, "months_active": 1, "active": false}, {"name": "(폐점)신세계광주MB(미입점행사)", "channel": "A (백화점)", "manager": "", "rank": 120, "total": 5108800, "monthly_avg": 1320989, "prev_year": 0, "growth": 0, "new_product": 0, "old_product": 5108800, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 5108800, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 5108800, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "도산공원(팝업)", "channel": "B (직영점)", "manager": "", "rank": 121, "total": 3744000, "monthly_avg": 1159826, "prev_year": 0, "growth": 0, "new_product": 3744000, "old_product": 0, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 3579200, "6월": 164800}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 3579200, "6월": 164800}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 2, "active": false}, {"name": "(●26폐점)태광C.CMB[1.31]", "channel": "C (대리점)", "manager": "", "rank": 128, "total": 38000, "monthly_avg": 221870, "prev_year": 16563100, "growth": -99.77, "new_product": 38000, "old_product": 0, "monthly": {"1월": 38000, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 1518200, "2월": 1501800, "3월": 1591300, "4월": 3650200, "5월": 4742200, "6월": 3559400}, "monthly_new": {"1월": 38000, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 1, "active": false}, {"name": "●종료(25.11.2)현대충청MB", "channel": "A (백화점)", "manager": "", "rank": 129, "total": 0, "monthly_avg": 0, "prev_year": 153525800, "growth": -100.0, "new_product": 0, "old_product": 0, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 11811200, "2월": 8823200, "3월": 25526000, "4월": 40101600, "5월": 40245000, "6월": 27018800}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 0, "active": false}, {"name": "[★25.폐점]신세계천안아산MB(2.10)", "channel": "A (백화점)", "manager": "", "rank": 129, "total": 0, "monthly_avg": 0, "prev_year": 8033000, "growth": -100.0, "new_product": 0, "old_product": 0, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 6613000, "2월": 1420000, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 0, "active": false}, {"name": "●종료(25.11.30)현대청주MB(아울렛)", "channel": "H (아울렛)", "manager": "", "rank": 129, "total": 0, "monthly_avg": 0, "prev_year": 281800, "growth": -100.0, "new_product": 0, "old_product": 0, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 281800}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 0, "active": false}, {"name": "(●26폐점)이스트밸리C.CMB[3.20]", "channel": "C (대리점)", "manager": "", "rank": 129, "total": 0, "monthly_avg": 0, "prev_year": 20144700, "growth": -100.0, "new_product": 0, "old_product": 0, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 5912000, "4월": 6959100, "5월": 4742000, "6월": 2531600}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 0, "active": false}, {"name": "[★25.폐점]신제주MB(2.10)", "channel": "C (대리점)", "manager": "", "rank": 129, "total": 0, "monthly_avg": 0, "prev_year": 6312881, "growth": -100.0, "new_product": 0, "old_product": 0, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 2850481, "2월": 3462400, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 0, "active": false}, {"name": "[★25.폐점]천안쌍용MB(2.28)", "channel": "C (대리점)", "manager": "", "rank": 129, "total": 0, "monthly_avg": 0, "prev_year": 23086487, "growth": -100.0, "new_product": 0, "old_product": 0, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 9380387, "2월": 13706100, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 0, "active": false}, {"name": "[★24.폐점]수원영통MB(12.19)", "channel": "C (대리점)", "manager": "", "rank": 129, "total": 0, "monthly_avg": 0, "prev_year": 1462800, "growth": -100.0, "new_product": 0, "old_product": 0, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 1462800, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 0, "active": false}, {"name": "현대무역(특판)", "channel": "A (백화점)", "manager": "", "rank": 129, "total": 0, "monthly_avg": 0, "prev_year": 8324200, "growth": -100.0, "new_product": 0, "old_product": 0, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 5604800, "3월": 2719400, "4월": 0, "5월": 0, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 0, "active": false}, {"name": "현대판교(논현특판MM)", "channel": "", "manager": "", "rank": 129, "total": 0, "monthly_avg": 0, "prev_year": 5804000, "growth": -100.0, "new_product": 0, "old_product": 0, "monthly": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_prev": {"1월": 0, "2월": 0, "3월": 0, "4월": 5754000, "5월": 50000, "6월": 0}, "monthly_new": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "monthly_old": {"1월": 0, "2월": 0, "3월": 0, "4월": 0, "5월": 0, "6월": 0}, "months_active": 0, "active": false}];
+
+const MONTHS=['1월','2월','3월','4월','5월','6월'];
+const CH_ORDER=['A (백화점)','H (아울렛)','C (대리점)','O (온라인쇼핑몰)','B (직영점)','Z (기타)'];
+const CH_LABEL={'A (백화점)':'백화점','H (아울렛)':'아울렛','C (대리점)':'대리점(인샵포함)','O (온라인쇼핑몰)':'온라인','B (직영점)':'직영점','Z (기타)':'기타',''  :'기타'};
+const CH_SHORT={'A (백화점)':'백화점','H (아울렛)':'아울렛','C (대리점)':'대리점','O (온라인쇼핑몰)':'온라인','B (직영점)':'직영점','Z (기타)':'기타',''  :'기타'};
+const CH_COLOR={'A (백화점)':'#60a5fa','H (아울렛)':'#f87171','C (대리점)':'#fb923c','O (온라인쇼핑몰)':'#c084fc','B (직영점)':'#4ade80','Z (기타)':'#6b7694',''  :'#6b7694'};
+const MGR_COLOR={'공진규':'#60a5fa','김창균':'#f87171','문지훈':'#4ade80','양승일':'#c084fc','정병식':'#fb923c','미배정':'#6b7694'};
+const MGRS=['공진규','김창균','문지훈','양승일','정병식'];
+
+// ══ 추정 파라미터 ══
+const WD_FACTOR = 0.85;   // 주중 가중치
+const WE_FACTOR = 1.40;   // 주말 가중치
+const DAYS_IN_MONTH = [31,28,29,30,31,30,31,31,30,31,30,31]; // 2026년 기준 (3월 29일)
+
+// 요일별 일수 카운트
+function countDayTypes(year, month, fromDay, toDay) {
+  let wd=0, we=0;
+  for(let d=fromDay; d<=toDay; d++) {
+    const dow = new Date(year, month-1, d).getDay();
+    if(dow===0||dow===6) we++; else wd++;
+  }
+  return {wd, we};
+}
+
+// ══ 데이터 기준일 관리 ══
+let DATA_DATE = new Date('2026-06-30');
+
+function onDateChange() {
+  const v = document.getElementById('dataDate').value;
+  if(v) { DATA_DATE = new Date(v+'T00:00:00'); renderKPI(); renderContent(); }
+}
+
+// 기준일 분석
+function getDateInfo() {
+  const y = DATA_DATE.getFullYear();
+  const m = DATA_DATE.getMonth()+1;
+  const d = DATA_DATE.getDate();
+  const lastDay = new Date(y, m, 0).getDate();
+  const daysLeft = lastDay - d;
+  const isMonthEnd = (d === lastDay);
+
+  // 잔여일 요일 분석
+  const rem = daysLeft>0 ? countDayTypes(y, m, d+1, lastDay) : {wd:0, we:0};
+  // 경과일 요일 분석
+  const elapsed = countDayTypes(y, m, 1, d);
+  const equivEl  = elapsed.wd*WD_FACTOR + elapsed.we*WE_FACTOR;
+  const equivRem = rem.wd*WD_FACTOR + rem.we*WE_FACTOR;
+
+  // 다음달 분석 (7월 기준)
+  const nm = m===12?1:m+1, ny = m===12?y+1:y;
+  const ndLast = new Date(ny, nm, 0).getDate();
+  const ndInfo = countDayTypes(ny, nm, 1, ndLast);
+  const equivNext = ndInfo.wd*WD_FACTOR + ndInfo.we*WE_FACTOR;
+
+  // 현재월 월이름
+  const mNames = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+
+  return {y,m,d,lastDay,daysLeft,isMonthEnd,rem,elapsed,equivEl,equivRem,ndInfo,equivNext,
+    nm,mNames,curMonLabel:mNames[m-1],nextMonLabel:mNames[nm-1]};
+}
+
+// ══ 핵심 추정 함수 ══
+// stores: 집계 대상 매장 배열
+// 반환: {curForecast, nextForecast, curSales, prevSales, dayInfo}
+function calcForecast(stores) {
+  const info = getDateInfo();
+  const {y,m,d,isMonthEnd,equivEl,equivRem,equivNext,nm,ny} = info;
+
+  // 현재월 매출 (데이터에 들어있는 값)
+  const curMonKey = info.curMonLabel; // e.g. '6월'
+  const curSales  = stores.reduce((a,b)=>a+(b.monthly[curMonKey]||0),0);
+  const prevSales = stores.reduce((a,b)=>a+(b.monthly_prev[curMonKey]||0),0);
+
+  let curForecast, forecastNote;
+
+  if(isMonthEnd) {
+    // 월말 확정 — 다음달 추정
+    curForecast = curSales;
+    forecastNote = '확정';
+  } else {
+    // 월중 — 잔여일 가중 추정
+    if(equivEl > 0) {
+      const baseUnit = curSales / equivEl;
+      const remaining = Math.round(baseUnit * equivRem);
+      curForecast = curSales + remaining;
+      forecastNote = `잔여 ${info.daysLeft}일 (주중${info.rem.wd}·주말${info.rem.we})`;
+    } else {
+      curForecast = curSales;
+      forecastNote = '데이터 없음';
+    }
+  }
+
+  // 다음달 추정: 전년 월별 비중 × 당해 성장률로 산출
+  // 전년 현재월 실적
+  const prevCurMon = stores.reduce((a,b)=>a+(b.monthly_prev[curMonKey]||0),0);
+  // 전년 전체 누계 (1-6월)
+  const prevTotal  = stores.reduce((a,b)=>a+b.prev_year,0);
+  // 전년 이전 5개월 합 (현재월 제외)
+  const prevOther  = prevTotal - prevCurMon;
+
+  // 당해 전체 성장률 (1~현재월)
+  const curTotal6  = stores.reduce((a,b)=>a+b.total,0);
+  const growthRate = prevTotal>0 ? curTotal6/prevTotal : 1;
+
+  // 전년 다음달 추정 (= 전년 7월 ≈ 전년 월평균 × 계절계수)
+  // 계절계수: 전년 각 월 비중으로 산출
+  // 다음달(7월) 전년 데이터는 없으므로, 직전 3개월 비중으로 근사
+  const prev3Sum = ['4월','5월','6월'].reduce((a,m)=>a+stores.reduce((s,r)=>s+(r.monthly_prev[m]||0),0),0);
+  const prev3Days = DAYS_IN_MONTH[3]+DAYS_IN_MONTH[4]+DAYS_IN_MONTH[5]; // Apr+May+Jun
+  const prevDailyAvg = prev3Sum/prev3Days;
+
+  // 7월 전년 추정 = 전년 일평균 × 7월 가중 일수
+  const prevNextMon = Math.round(prevDailyAvg * equivNext);
+  // 당해 7월 추정 = 전년 7월 추정 × 성장률 × 계절조정
+  // 계절조정: 최근 3개월 성장률 사용
+  const cur3Sum  = ['4월','5월','6월'].reduce((a,m)=>a+stores.reduce((s,r)=>s+(r.monthly[m]||0),0),0);
+  const recentGr = prev3Sum>0 ? cur3Sum/prev3Sum : growthRate;
+  const nextForecast = Math.round(prevNextMon * recentGr);
+
+  return {curForecast, nextForecast, curSales, prevSales, prevNextMon,
+    forecastNote, isMonthEnd, info, growthRate, recentGr};
+}
+
+// 개별 매장 추정
+function calcStoreForecast(s) {
+  const info = getDateInfo();
+  const {isMonthEnd, equivEl, equivRem, equivNext} = info;
+  const curKey = info.curMonLabel;
+  const curSales = s.monthly[curKey]||0;
+
+  let curForecast;
+  if(isMonthEnd) {
+    curForecast = curSales;
+  } else {
+    const baseUnit = equivEl>0 ? curSales/equivEl : 0;
+    curForecast = curSales + Math.round(baseUnit * equivRem);
+  }
+
+  // 다음달 추정
+  const prev3 = ['4월','5월','6월'].map(m=>s.monthly_prev[m]||0).reduce((a,b)=>a+b,0);
+  const cur3  = ['4월','5월','6월'].map(m=>s.monthly[m]||0).reduce((a,b)=>a+b,0);
+  const prev3days = DAYS_IN_MONTH[3]+DAYS_IN_MONTH[4]+DAYS_IN_MONTH[5];
+  const prevDailyAvg = prev3/prev3days;
+  const prevNextMon = Math.round(prevDailyAvg * equivNext);
+  const recentGr = prev3>0 ? cur3/prev3 : 1;
+  const nextForecast = Math.round(prevNextMon * recentGr);
+
+  return {curForecast, nextForecast, curSales, isMonthEnd, info, prevNextMon};
+}
+
+// ══ 상태 ══
+let mode='all', subFilter=null, monthFilter=null, showInactive=false;
+let sortKey='rank', sortAsc=true;
+let noteTarget='';
+let charts={};
+
+const fmtM = n=>{const a=Math.abs(n||0);if(a>=100000000)return(n/100000000).toFixed(1)+'억';if(a>=10000)return Math.round(n/10000)+'만';return(n||0).toLocaleString('ko-KR');};
+const pct  = (a,b)=>b?+((a/b-1)*100).toFixed(1):0;
+const arr  = g=>g>0?'▲':g<0?'▼':'━';
+const cls  = g=>g>0?'up':g<0?'down':'neu';
+const cc   = g=>g>0?'var(--green)':g<0?'var(--red)':'var(--sub)';
+const getNote = n=>localStorage.getItem('mbe_'+n)||'';
+const DOW_KO  = ['일','월','화','수','목','금','토'];
+
+function getActive(list){return showInactive?list:list.filter(s=>s.active);}
+function getStores(){
+  let l=STORES;
+  if(mode==='channel'&&subFilter) l=l.filter(s=>s.channel===subFilter);
+  if(mode==='manager'&&subFilter) l=l.filter(s=>s.manager===subFilter);
+  if(mode==='store'  &&subFilter) l=l.filter(s=>s.name===subFilter);
+  return l;
+}
+function getSales(s){return monthFilter?(s.monthly[monthFilter]||0):s.total;}
+function getPrev(s) {return monthFilter?(s.monthly_prev[monthFilter]||0):s.prev_year;}
+function agg(list){
+  const a=getActive(list);
+  const total=a.reduce((x,b)=>x+getSales(b),0);
+  const prev=a.reduce((x,b)=>x+getPrev(b),0);
+  return{total,prev,gr:pct(total,prev)};
+}
+
+function setMode(m,ev){mode=m;subFilter=null;
+  document.querySelectorAll('.mode-btn').forEach((b,i)=>b.classList.toggle('active',['all','channel','manager','store'][i]===m));
+  renderSubChips();renderMonthChips();renderKPI();renderContent();}
+function setSubFilter(val){subFilter=val;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active',c.dataset.val===val));
+  renderKPI();renderContent();}
+function setMonthFilter(m){monthFilter=m;
+  document.querySelectorAll('.month-chip').forEach(c=>c.classList.toggle('active',c.dataset.m===(m||'all')));
+  renderKPI();renderContent();}
+
+function renderSubChips(){
+  const w=document.getElementById('subChips'),ss=document.getElementById('ssWrap');
+  if(mode==='all'){w.innerHTML='';ss.style.display='none';return;}
+  if(mode==='store'){w.innerHTML='';ss.style.display='block';initDD();return;}
+  ss.style.display='none';
+  const items=mode==='channel'?CH_ORDER.map(c=>({val:c,label:CH_SHORT[c]||c})):MGRS.map(m=>({val:m,label:m}));
+  w.innerHTML=items.map(it=>`<button class="chip${subFilter===it.val?' active':''}" data-val="${it.val}" onclick="setSubFilter('${it.val}')">${it.label}</button>`).join('');
+}
+function renderMonthChips(){
+  document.getElementById('monthChips').innerHTML=
+    `<button class="month-chip all${!monthFilter?' active':''}" data-m="all" onclick="setMonthFilter(null)">전체</button>`+
+    MONTHS.map(m=>`<button class="month-chip${monthFilter===m?' active':''}" data-m="${m}" onclick="setMonthFilter('${m}')">${m}</button>`).join('');
+}
+
+function renderKPI(){
+  const all=getActive(getStores());
+  const {total,prev,gr}=agg(getStores());
+  const cnt=all.length;
+  const upCnt=all.filter(s=>pct(getSales(s),getPrev(s))>0).length;
+  const avgM=cnt>0?total/cnt:0;
+  const bestM=MGRS.map(m=>({m,t:getActive(STORES.filter(s=>s.manager===m)).reduce((a,b)=>a+getSales(b),0)})).sort((a,b)=>b.t-a.t)[0];
+  const info=getDateInfo();
+  document.getElementById('kpiStrip').innerHTML=[
+    {lbl:'누계 매출',val:fmtM(total)+'원',chg:'',cls:'gold'},
+    {lbl:'전년대비',val:`${arr(gr)} ${Math.abs(gr).toFixed(1)}%`,chg:`전년 ${fmtM(prev)}원`,cls:cls(gr)},
+    {lbl:'유효 매장수',val:`${cnt}개`,chg:`전체 ${STORES.length}개 중`,cls:''},
+    {lbl:'성장 매장',val:`${upCnt}개`,chg:`역신장 ${cnt-upCnt}개`,cls:'up'},
+    {lbl:'매장 평균',val:fmtM(avgM)+'원',chg:`${monthFilter||'1~'+info.curMonLabel}`,cls:''},
+    {lbl:'TOP 담당',val:bestM?.m||'-',chg:fmtM(bestM?.t||0)+'원',cls:'gold'},
+  ].map(k=>`<div class="kpi-item"><div class="kpi-lbl">${k.lbl}</div><div class="kpi-val ${k.cls}">${k.val}</div><div class="kpi-chg ${k.cls}">${k.chg}</div></div>`).join('');
+}
+
+// ══ 예상마감 스트립 (핵심 개선) ══
+function fcStrip(stores) {
+  const active = getActive(stores);
+  const fc = calcForecast(active);
+  const {curForecast,nextForecast,curSales,prevSales,prevNextMon,
+         forecastNote,isMonthEnd,info,recentGr} = fc;
+  const curGr = pct(curForecast, prevSales);
+  const nextGr = pct(nextForecast, prevNextMon);
+  const totalGr = pct(curForecast, prevSales);
+
+  // 잔여일 표시
+  let dayPills = '';
+  if(!isMonthEnd && info.daysLeft>0) {
+    const rem = info.rem;
+    for(let d=info.d+1; d<=info.lastDay; d++) {
+      const dt = new Date(info.y, info.m-1, d);
+      const dow = dt.getDay();
+      const isWe = dow===0||dow===6;
+      dayPills += `<span class="day-pill ${isWe?'we':'wd'}">${d}일(${DOW_KO[dow]})</span>`;
+    }
+  }
+
+  const methodText = isMonthEnd
+    ? `${info.curMonLabel} 확정 · 전년 비중 + 주간/주말 비율로 ${info.nextMonLabel} 추정`
+    : `전년 월별 비중 + 주중${WD_FACTOR}/주말${WE_FACTOR} 가중 · 잔여 ${info.daysLeft}일 반영`;
+
+  return `<div class="fc-strip">
+    <div class="fc-header">
+      <span class="fc-header-title">🔮 추정마감</span>
+      <span class="fc-date-info">기준일 ${info.y}년 ${info.m}월 ${info.d}일(${DOW_KO[new Date(info.y,info.m-1,info.d).getDay()]})</span>
+      <span class="fc-method">${methodText}</span>
+      ${dayPills?`<div class="day-pills">${dayPills}</div>`:''}
+    </div>
+    <div class="fc-body">
+      <div class="fc-item">
+        <div class="fc-lbl">${info.curMonLabel} ${isMonthEnd?'확정':'추정마감'}</div>
+        <div class="fc-val">${fmtM(curForecast)}원</div>
+        <div class="fc-sub">현재 ${fmtM(curSales)}원${!isMonthEnd?` · 추가 ${fmtM(curForecast-curSales)}원`:''}</div>
+        <span class="fc-badge ${curGr>=0?'pos':'neg'}">${arr(curGr)} ${Math.abs(curGr).toFixed(1)}% 전년대비</span>
+      </div>
+      <div class="fc-item">
+        <div class="fc-lbl">${info.nextMonLabel} 추정마감</div>
+        <div class="fc-val">${fmtM(nextForecast)}원</div>
+        <div class="fc-sub">전년 ${info.nextMonLabel} 추정 ${fmtM(prevNextMon)}원</div>
+        <span class="fc-badge ${nextGr>=0?'pos':'neg'}">${arr(nextGr)} ${Math.abs(nextGr).toFixed(1)}% 전년대비</span>
+      </div>
+      <div class="fc-item">
+        <div class="fc-lbl">1~${isMonthEnd?info.m:info.m}월 누계</div>
+        <div class="fc-val">${fmtM(active.reduce((a,b)=>a+b.total,0))}원</div>
+        <div class="fc-sub">전년 동기 ${fmtM(active.reduce((a,b)=>a+b.prev_year,0))}원</div>
+        <span class="fc-badge ${totalGr>=0?'pos':'neg'}">${arr(totalGr)} ${Math.abs(totalGr).toFixed(1)}%</span>
+      </div>
+      <div class="fc-item">
+        <div class="fc-lbl">최근 3개월 성장률</div>
+        <div class="fc-val" style="color:${cc((recentGr-1)*100)}">${arr((recentGr-1)*100)} ${Math.abs((recentGr-1)*100).toFixed(1)}%</div>
+        <div class="fc-sub">4~${info.curMonLabel} 전년대비</div>
+        <span class="fc-badge neu">주중${WD_FACTOR} / 주말${WE_FACTOR} 가중</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ══ 콘텐츠 라우팅 ══
+function renderContent(){
+  destroyCharts();
+  const el=document.getElementById('contentArea');
+  if(mode==='all')                          renderOverview(el);
+  else if(mode==='channel'&&!subFilter)     renderChGrid(el);
+  else if(mode==='channel'&&subFilter)      renderDrill(el,'channel',subFilter);
+  else if(mode==='manager'&&!subFilter)     renderMgrGrid(el);
+  else if(mode==='manager'&&subFilter)      renderDrill(el,'manager',subFilter);
+  else if(mode==='store'&&subFilter)        renderStoreDetail(el,subFilter);
+  else el.innerHTML='<div style="color:var(--sub);text-align:center;padding:60px">← 매장을 검색하여 선택하세요</div>';
+}
+
+function mkInactiveToggle(){
+  return `<div class="inactive-toggle"><div class="toggle-sw${showInactive?' on':''}" onclick="toggleInactive()" id="toggleSw"></div><span>폐점·특판·비정기 포함 (${STORES.filter(s=>!s.active).length}개)</span></div>`;
+}
+function toggleInactive(){showInactive=!showInactive;renderKPI();renderContent();}
+
+// ══ 전체현황 ══
+function renderOverview(el){
+  const active=getActive(STORES);
+  const mT=MONTHS.map(m=>active.reduce((s,r)=>s+(r.monthly[m]||0),0));
+  const mP=MONTHS.map(m=>active.reduce((s,r)=>s+(r.monthly_prev[m]||0),0));
+  const mG=MONTHS.map((_,i)=>pct(mT[i],mP[i]));
+  el.innerHTML=`
+    ${fcStrip(STORES)}
+    ${mkInactiveToggle()}
+    <div class="sec-title">월별 매출 추이</div>
+    <div class="chart-row cols-2" style="margin-bottom:20px">
+      <div class="chart-card"><div class="chart-title">월별 매출 전년 비교<span class="sub">단위: 원</span></div><div class="chart-wrap h260"><canvas id="c_mMain"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">월별 신장율 추이<span class="sub">전년대비 %</span></div><div class="chart-wrap h260"><canvas id="c_gMain"></canvas></div></div>
+    </div>
+    <div class="sec-title">담당별 · 채널별 현황</div>
+    <div class="chart-row cols-3" style="margin-bottom:20px">
+      <div class="chart-card"><div class="chart-title">담당별 누계 매출</div><div class="chart-wrap h260"><canvas id="c_mgrBar"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">유통채널 구성</div><div class="chart-wrap h260"><canvas id="c_chD"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">담당별 신장율</div><div class="chart-wrap h260"><canvas id="c_mgrG"></canvas></div></div>
+    </div>
+    <div class="sec-title">매장별 현황</div>
+    ${storeTable(STORES)}`;
+  setTimeout(()=>{
+    mkBarLine('c_mMain',MONTHS,mT,mP,'26년','25년');
+    mkGrowthBar('c_gMain',MONTHS,mG);
+    mkHorzBar('c_mgrBar',MGRS,MGRS.map(m=>getActive(STORES.filter(s=>s.manager===m)).reduce((a,b)=>a+b.total,0)),MGRS.map(m=>MGR_COLOR[m]));
+    mkDoughnut('c_chD',CH_ORDER.map(c=>CH_SHORT[c]),CH_ORDER.map(c=>getActive(STORES.filter(s=>s.channel===c)).reduce((a,b)=>a+b.total,0)),CH_ORDER.map(c=>CH_COLOR[c]));
+    mkGrowthBar('c_mgrG',MGRS,MGRS.map(m=>{const ss=getActive(STORES.filter(s=>s.manager===m));return pct(ss.reduce((a,b)=>a+b.total,0),ss.reduce((a,b)=>a+b.prev_year,0));}));
+  },50);
+}
+
+// ══ 유통 그리드 ══
+function renderChGrid(el){
+  el.innerHTML=`${mkInactiveToggle()}<div class="sec-title">유통채널별 현황</div><div class="ch-grid">
+    ${CH_ORDER.map(ch=>{
+      const ss=getActive(STORES.filter(s=>s.channel===ch));
+      const t=ss.reduce((a,b)=>a+b.total,0),p=ss.reduce((a,b)=>a+b.prev_year,0),g=pct(t,p);
+      return `<div class="ch-card" onclick="setSubFilter('${ch}');document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active',c.dataset.val==='${ch}'))">
+        <div class="ch-card-name" style="color:${CH_COLOR[ch]||'var(--sub)'};font-size:14px;font-weight:700;margin-bottom:10px">${CH_LABEL[ch]||ch}</div>
+        <div style="font-size:20px;font-weight:800;color:var(--gold)">${fmtM(t)}원</div>
+        <div style="font-size:11px;color:var(--sub);margin-top:4px">${ss.length}개 매장</div>
+        <div style="font-size:12px;font-weight:700;color:${cc(g)};margin-top:6px">${arr(g)} ${Math.abs(g).toFixed(1)}%</div>
+      </div>`;
+    }).join('')}</div>`;
+}
+
+// ══ 담당 그리드 ══
+function renderMgrGrid(el){
+  const allT=getActive(STORES).reduce((a,b)=>a+b.total,0);
+  el.innerHTML=`${mkInactiveToggle()}<div class="sec-title">담당사원별 현황</div><div class="mgr-grid">
+    ${MGRS.map(m=>{
+      const ss=getActive(STORES.filter(s=>s.manager===m));
+      const t=ss.reduce((a,b)=>a+b.total,0),p=ss.reduce((a,b)=>a+b.prev_year,0),g=pct(t,p),sh=allT?(t/allT*100):0;
+      const color=MGR_COLOR[m];
+      return `<div class="mgr-card" onclick="setSubFilter('${m}');document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active',c.dataset.val==='${m}'))">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${color}"></div>
+        <div class="mgr-card-name" style="color:${color}">${m}</div>
+        <div class="mgr-card-stats">
+          <div><div class="mgr-stat-val gold">${fmtM(t)}원</div><div class="mgr-stat-lbl">누계 매출</div></div>
+          <div><div class="mgr-stat-val ${cls(g)}">${arr(g)} ${Math.abs(g).toFixed(1)}%</div><div class="mgr-stat-lbl">전년대비</div></div>
+          <div><div class="mgr-stat-val">${ss.length}개</div><div class="mgr-stat-lbl">유효 매장</div></div>
+          <div><div class="mgr-stat-val">${sh.toFixed(1)}%</div><div class="mgr-stat-lbl">점유율</div></div>
+        </div>
+        <div class="mgr-bar"><div class="mgr-bar-fill" style="width:${sh}%;background:${color}"></div></div>
+      </div>`;
+    }).join('')}</div>`;
+}
+
+// ══ 드릴다운 ══
+function renderDrill(el,type,val){
+  const raw=STORES.filter(s=>type==='channel'?s.channel===val:s.manager===val);
+  const active=getActive(raw);
+  const {total,prev,gr}=agg(raw);
+  const color=type==='channel'?(CH_COLOR[val]||'var(--sub)'):(MGR_COLOR[val]||'var(--sub)');
+  const label=type==='channel'?(CH_LABEL[val]||val):val;
+  const mT=MONTHS.map(m=>active.reduce((s,r)=>s+(r.monthly[m]||0),0));
+  const mP=MONTHS.map(m=>active.reduce((s,r)=>s+(r.monthly_prev[m]||0),0));
+  const mG=MONTHS.map((_,i)=>pct(mT[i],mP[i]));
+  el.innerHTML=`
+    <div class="drill-hdr">
+      <div class="drill-name" style="color:${color}">${label}</div>
+      <div style="font-size:12px;color:var(--sub)">${active.length}개 유효매장 · 누계 ${fmtM(total)}원 · <span style="color:${cc(gr)};font-weight:700">${arr(gr)} ${Math.abs(gr).toFixed(1)}%</span></div>
+    </div>
+    ${fcStrip(raw)}
+    ${mkInactiveToggle()}
+    <div class="chart-row cols-2" style="margin-bottom:20px">
+      <div class="chart-card"><div class="chart-title">월별 매출 전년 비교</div><div class="chart-wrap h260"><canvas id="c_dd_m"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">월별 신장율 추이</div><div class="chart-wrap h260"><canvas id="c_dd_g"></canvas></div></div>
+    </div>
+    <div class="sec-title">매장별 현황</div>
+    ${storeTable(raw)}`;
+  setTimeout(()=>{mkBarLine('c_dd_m',MONTHS,mT,mP,'26년','25년');mkGrowthBar('c_dd_g',MONTHS,mG);},50);
+}
+
+// ══ 개별 매장 ══
+function renderStoreDetail(el,name){
+  const s=STORES.find(x=>x.name===name);
+  if(!s){el.innerHTML='<div style="color:var(--sub);padding:40px;text-align:center">매장을 찾을 수 없습니다</div>';return;}
+  const mV=MONTHS.map(m=>s.monthly[m]||0);
+  const mP=MONTHS.map(m=>s.monthly_prev[m]||0);
+  const mG=MONTHS.map((_,i)=>pct(mV[i],mP[i]));
+  const gr=pct(s.total,s.prev_year);
+  const color=MGR_COLOR[s.manager]||'var(--sub)';
+  const note=getNote(s.name);
+  const fc=calcStoreForecast(s);
+  const {curForecast,nextForecast,curSales,isMonthEnd,info,prevNextMon}=fc;
+  const curGr=pct(curForecast,s.monthly_prev[info.curMonLabel]||0);
+  const nextGr=pct(nextForecast,prevNextMon);
+  const DOW=DOW_KO[new Date(info.y,info.m-1,info.lastDay).getDay()];
+
+  const monthRows=MONTHS.map((m,i)=>{
+    const g=mG[i];
+    return `<tr>
+      <td style="font-weight:700;color:var(--gold)">${m}</td>
+      <td style="font-weight:700">${fmtM(mV[i])}원</td>
+      <td style="color:var(--sub)">${fmtM(mP[i])}원</td>
+      <td style="font-weight:700;color:${cc(g)}">${arr(g)} ${Math.abs(g).toFixed(1)}%</td>
+      <td style="color:var(--sub);font-size:11px">${fmtM(s.monthly_new[m]||0)} / ${fmtM(s.monthly_old[m]||0)}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML=`
+    <div class="drill-hdr">
+      <div style="font-size:22px;font-weight:800">${name}</div>
+      <span class="ch-tag" style="background:rgba(0,0,0,.3);color:${CH_COLOR[s.channel]||'var(--sub)'}">${CH_SHORT[s.channel]||s.channel}</span>
+      <span class="mgr-tag" style="color:${color}">● ${s.manager}</span>
+      <span style="font-size:12px;color:var(--sub)">#${s.rank}위</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+      ${[
+        {lbl:'26년 누계',val:fmtM(s.total)+'원',cls:'gold'},
+        {lbl:'전년대비',val:`${arr(gr)} ${Math.abs(gr).toFixed(1)}%`,cls:cls(gr)},
+        {lbl:'월 평균',val:fmtM(s.monthly_avg)+'원',cls:''},
+        {lbl:`${info.curMonLabel} ${isMonthEnd?'확정':'추정마감'}`,val:fmtM(curForecast)+'원',cls:'gold'},
+        {lbl:`${info.curMonLabel} ${isMonthEnd?'':'추정'} 신장율`,val:`${arr(curGr)} ${Math.abs(curGr).toFixed(1)}%`,cls:cls(curGr)},
+        {lbl:`${info.nextMonLabel} 추정마감`,val:fmtM(nextForecast)+'원',cls:'gold'},
+      ].map(k=>`<div class="chart-card" style="padding:14px">
+        <div style="font-size:10px;color:var(--sub);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px">${k.lbl}</div>
+        <div style="font-size:17px;font-weight:800" class="${k.cls}">${k.val}</div>
+      </div>`).join('')}
+    </div>
+    <div class="chart-card" style="margin-bottom:20px;padding:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:11px;color:var(--sub);letter-spacing:.5px;font-weight:700;text-transform:uppercase">📝 특이사항</div>
+        <button class="note-btn ${note?'filled':''}" onclick="openNote('${name.replace(/'/g,"\\'")}')"> ${note?'✏️ 수정':'➕ 입력'}</button>
+      </div>
+      <div id="noteDisplay" style="margin-top:8px;font-size:13px;color:${note?'var(--text)':'var(--sub)'}">
+        ${note||'특이사항 없음'}
+      </div>
+    </div>
+    <div class="chart-row cols-2" style="margin-bottom:20px">
+      <div class="chart-card"><div class="chart-title">월별 매출 전년 비교</div><div class="chart-wrap h260"><canvas id="c_st_m"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">월별 신장율 추이</div><div class="chart-wrap h260"><canvas id="c_st_g"></canvas></div></div>
+    </div>
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <div class="chart-title">월별 상세 실적</div>
+        <div class="tbl-wrap" style="border:none">
+          <table class="tbl" style="min-width:auto">
+            <thead><tr><th>월</th><th>26년 매출</th><th>25년 실적</th><th>신장율</th><th>신상/이월</th></tr></thead>
+            <tbody>${monthRows}</tbody>
+          </table>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">${info.nextMonLabel} 추정마감 <span class="sub">전년비중 + 주중/주말 가중</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:220px;gap:8px">
+          <div style="font-size:36px;font-weight:800;color:var(--gold)">${fmtM(nextForecast)}원</div>
+          <div style="font-size:13px;color:var(--sub)">전년 ${info.nextMonLabel} 추정 ${fmtM(prevNextMon)}원</div>
+          <div style="font-size:18px;font-weight:700;color:${cc(nextGr)}">${arr(nextGr)} ${Math.abs(nextGr).toFixed(1)}%</div>
+          <div style="font-size:11px;color:var(--sub);margin-top:4px">주중 ${WD_FACTOR} / 주말 ${WE_FACTOR} 가중 적용</div>
+        </div>
+      </div>
+    </div>`;
+  setTimeout(()=>{mkBarLine('c_st_m',MONTHS,mV,mP,'26년','25년');mkGrowthBar('c_st_g',MONTHS,mG);},50);
+}
+
+// ══ 매장 테이블 ══
+function storeTable(list){
+  const active=getActive(list).sort((a,b)=>a.rank-b.rank);
+  const inactive=list.filter(s=>!s.active).sort((a,b)=>b.total-a.total);
+  const rows=[...active,...(showInactive?inactive:[])];
+  const info=getDateInfo();
+  return `<div class="tbl-wrap"><table class="tbl">
+    <thead><tr>
+      <th onclick="sortTbl('rank')">순위</th><th onclick="sortTbl('name')">매장명</th>
+      <th>채널</th><th>담당</th>
+      <th onclick="sortTbl('total')">누계매출</th><th onclick="sortTbl('prev_year')">전년</th>
+      <th onclick="sortTbl('growth')">신장율</th>
+      <th>1월</th><th>전년비</th><th>2월</th><th>전년비</th>
+      <th>3월</th><th>전년비</th><th>4월</th><th>전년비</th>
+      <th>5월</th><th>전년비</th><th>6월</th><th>전년비</th>
+      <th>${info.curMonLabel} ${info.isMonthEnd?'확정':'추정'}</th>
+      <th>${info.nextMonLabel} 추정</th>
+      <th>특이사항</th>
+    </tr></thead>
+    <tbody>
+    ${rows.map(s=>{
+      const gr=pct(s.total,s.prev_year);
+      const color=MGR_COLOR[s.manager]||'var(--sub)';
+      const note=getNote(s.name);
+      const fc=calcStoreForecast(s);
+      const rowCls=!s.active?'inactive-row':'';
+      return `<tr class="${rowCls}" onclick="selectStore('${s.name.replace(/'/g,"\\'")}')">
+        <td style="color:var(--gold);font-weight:700">${s.rank>900?'-':'#'+s.rank}</td>
+        <td style="font-weight:700">${s.name}</td>
+        <td><span class="ch-tag" style="background:rgba(0,0,0,.3);color:${CH_COLOR[s.channel]||'var(--sub)'}">${CH_SHORT[s.channel]||s.channel}</span></td>
+        <td><span class="mgr-tag" style="color:${color}">● ${s.manager}</span></td>
+        <td style="font-weight:700">${fmtM(s.total)}</td>
+        <td style="color:var(--sub)">${fmtM(s.prev_year)}</td>
+        <td style="font-weight:700;color:${cc(gr)}">${arr(gr)} ${Math.abs(gr).toFixed(1)}%</td>
+        ${MONTHS.map(m=>{
+          const mv=s.monthly[m]||0,pv=s.monthly_prev[m]||0,mg=pct(mv,pv);
+          return `<td>${fmtM(mv)}</td><td style="color:${cc(mg)};font-size:10px">${arr(mg)}${Math.abs(mg).toFixed(0)}%</td>`;
+        }).join('')}
+        <td style="font-weight:700;color:var(--gold)">${fmtM(fc.curForecast)}</td>
+        <td style="font-weight:700;color:var(--teal)">${fmtM(fc.nextForecast)}</td>
+        <td onclick="event.stopPropagation()">
+          <button class="note-btn ${note?'filled':''}" onclick="openNote('${s.name.replace(/'/g,"\\'")}')"> ${note?'📝':'➕'}</button>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+
+function sortTbl(key){
+  if(sortKey===key)sortAsc=!sortAsc;else{sortKey=key;sortAsc=key==='rank';}
+  STORES.sort((a,b)=>{let va=a[key],vb=b[key];if(typeof va==='string')return sortAsc?va.localeCompare(vb):vb.localeCompare(va);return sortAsc?va-vb:vb-va;});
+  renderContent();
+}
+function selectStore(name){
+  mode='store';subFilter=name;
+  document.querySelectorAll('.mode-btn').forEach((b,i)=>b.classList.toggle('active',i===3));
+  document.getElementById('ssWrap').style.display='block';
+  document.getElementById('storeSearch').value=name;
+  renderSubChips();renderKPI();renderContent();
+}
+
+// ══ 매장 드롭다운 ══
+function initDD(){populateDD(getActive(STORES));}
+function populateDD(list){
+  document.getElementById('storeDd').innerHTML=list.slice(0,80).map(s=>
+    `<div class="dd-item" onclick="selectStore('${s.name.replace(/'/g,"\\'")}')">
+      <div class="dd-dot" style="background:${MGR_COLOR[s.manager]||'var(--sub)'}"></div>
+      <div><div style="font-weight:600">${s.name}</div>
+      <div style="font-size:10px;color:var(--sub)">${s.manager} · ${CH_SHORT[s.channel]||s.channel}</div></div>
+    </div>`).join('');
+}
+function filterDD(){
+  const q=document.getElementById('storeSearch').value.toLowerCase();
+  const dd=document.getElementById('storeDd');
+  if(!q){dd.classList.remove('open');return;}
+  const f=STORES.filter(s=>s.name.toLowerCase().includes(q)||s.manager.includes(q));
+  populateDD(f);dd.classList.toggle('open',f.length>0);
+}
+document.addEventListener('click',e=>{if(!e.target.closest('.store-search-wrap'))document.getElementById('storeDd')?.classList.remove('open');});
+document.getElementById('storeSearch')?.addEventListener('focus',()=>{if(document.getElementById('storeSearch').value)document.getElementById('storeDd').classList.add('open');});
+
+// ══ 메모 ══
+function openNote(name){
+  noteTarget=name;
+  const s=STORES.find(x=>x.name===name);
+  document.getElementById('noteTitle').textContent='📝 '+name;
+  document.getElementById('noteSub').textContent=s?`${s.manager} 담당 · ${CH_SHORT[s.channel]||s.channel}`:'';
+  document.getElementById('noteText').value=getNote(name);
+  document.getElementById('noteOverlay').classList.add('open');
+}
+function closeNote(){document.getElementById('noteOverlay').classList.remove('open');}
+function saveNote(){
+  const v=document.getElementById('noteText').value.trim();
+  if(v)localStorage.setItem('mbe_'+noteTarget,v);else localStorage.removeItem('mbe_'+noteTarget);
+  closeNote();
+  const d=document.getElementById('noteDisplay');
+  if(d){d.textContent=v||'특이사항 없음';d.style.color=v?'var(--text)':'var(--sub)';}
+  renderContent();
+}
+
+// ══ 차트 ══
+const BASE={responsive:true,maintainAspectRatio:false,animation:{duration:350},
+  plugins:{legend:{labels:{color:'#6b7694',font:{size:11}}},
+    tooltip:{backgroundColor:'rgba(18,20,28,.95)',titleColor:'#e2e6f0',bodyColor:'#8892a4',borderColor:'#2a2e40',borderWidth:1}},
+  scales:{x:{grid:{color:'rgba(42,46,64,.4)'},ticks:{color:'#6b7694',font:{size:11}}},
+    y:{grid:{color:'rgba(42,46,64,.4)'},ticks:{color:'#6b7694',font:{size:11},callback:v=>fmtM(v)}}}};
+
+function destroyCharts(){Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}});charts={};}
+function mkBarLine(id,labels,bar,line,bL,lL){
+  charts[id]=new Chart(document.getElementById(id),{data:{labels,datasets:[
+    {type:'bar',label:bL,data:bar,backgroundColor:'rgba(232,184,109,.65)',borderRadius:5,borderSkipped:false},
+    {type:'line',label:lL,data:line,borderColor:'rgba(96,165,250,.8)',borderWidth:2,pointRadius:3,pointBackgroundColor:'var(--blue)',fill:false,tension:.3}
+  ]},options:{...BASE}});
+}
+function mkGrowthBar(id,labels,data){
+  charts[id]=new Chart(document.getElementById(id),{type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:data.map(g=>g>=0?'rgba(34,197,94,.6)':'rgba(239,68,68,.6)'),borderRadius:5,borderSkipped:false}]},
+    options:{...BASE,plugins:{...BASE.plugins,legend:{display:false}},
+      scales:{...BASE.scales,y:{...BASE.scales.y,ticks:{...BASE.scales.y.ticks,callback:v=>v+'%'}}}}});
+}
+function mkHorzBar(id,labels,data,colors){
+  charts[id]=new Chart(document.getElementById(id),{type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},
+    options:{...BASE,indexAxis:'y',plugins:{...BASE.plugins,legend:{display:false}}}});
+}
+function mkDoughnut(id,labels,data,colors){
+  charts[id]=new Chart(document.getElementById(id),{type:'doughnut',
+    data:{labels,datasets:[{data,backgroundColor:colors.map(c=>c+'88'),borderColor:colors,borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:350},
+      plugins:{legend:{position:'right',labels:{color:'#6b7694',font:{size:11}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmtM(ctx.raw)}원`}}}}});
+}
+
+// ══ 엑셀 업데이트 ══
+document.getElementById('fileInput').addEventListener('change',function(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'binary',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      const mCols=[16,21,26,31,36,41],pCols=[17,22,27,32,37,42],nCols=[14,19,24,29,34,39],oCols=[15,20,25,30,35,40];
+      const mNames=['1월','2월','3월','4월','5월','6월'];
+      STORES=[];
+      for(let i=2;i<rows.length;i++){
+        const r=rows[i];if(!r[0])continue;
+        const monthly={},mPrev={},mNew={},mOld={};
+        mNames.forEach((m,idx)=>{monthly[m]=Number(r[mCols[idx]])||0;mPrev[m]=Number(r[pCols[idx]])||0;mNew[m]=Number(r[nCols[idx]])||0;mOld[m]=Number(r[oCols[idx]])||0;});
+        let ch=String(r[2]||'');
+        if(ch==='I (인샵)')ch='C (대리점)';
+        if(r[0]==='덕평팩토리MB')ch='B (직영점)';
+        const monthsActive=mNames.filter(m=>(monthly[m]||0)>0).length;
+        const total=Number(r[5])||0;
+        STORES.push({name:String(r[0]),channel:ch,manager:String(r[3]||'').trim()||'미배정',
+          rank:Number(r[4])||999,total,monthly_avg:Number(r[6])||0,prev_year:Number(r[7])||0,
+          growth:Number(r[8])||0,new_product:Number(r[10])||0,old_product:Number(r[12])||0,
+          months_active:monthsActive,active:(monthsActive>=3&&total>0),
+          monthly,monthly_prev:mPrev,monthly_new:mNew,monthly_old:mOld});
+      }
+      // 파일명에서 날짜 자동 감지 (예: 260629_매출자료.xlsx → 2026-06-29)
+      const match=file.name.match(/(\d{2})(\d{2})(\d{2})/);
+      if(match){
+        const dateStr=`20${match[1]}-${match[2]}-${match[3]}`;
+        document.getElementById('dataDate').value=dateStr;
+        DATA_DATE=new Date(dateStr+'T00:00:00');
+      }
+      renderKPI();renderContent();
+      alert(`✅ 업데이트 완료 — ${STORES.filter(s=>s.active).length}개 유효 / ${STORES.length}개 전체\n기준일: ${document.getElementById('dataDate').value}`);
+      e.target.value='';
+    }catch(err){alert('❌ 오류: '+err.message);}
+  };
+  reader.readAsBinaryString(file);
+});
+
+// ══ 초기화 ══
+renderSubChips();renderMonthChips();renderKPI();renderContent();
+</script>
+</body>
+</html>
