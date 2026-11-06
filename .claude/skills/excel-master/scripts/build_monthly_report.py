@@ -7,7 +7,7 @@
 DIR 안에 ytd.json, report-<날짜>.json, sales-<YYYY-MM>.json, stores.json 이 있어야 합니다.
 숫자 원칙: 헤드라인(보고(요약))은 일일 보고서 공식 숫자, 매장 단위는 마스터 DB. 차이는 '※ 대조' 주석으로 밝힙니다.
 """
-import argparse, collections, json, os, re, sys
+import argparse, collections, datetime, json, os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from xlkit import Kit, P, NF, rc, cn
 import build_sales_workbook as B
@@ -334,6 +334,14 @@ class Report:
                        f"{c['ST']['mtd'] - R['kpi']['month']['sales'] / 1e6:+,.1f}백만 차이가 있습니다.", K.fmt(font_size=9, font_color=P['sub']))
         K.footer(ws, e + 3, 13, c['author'], 1)
         ws.set_h_pagebreaks([t0 - 1])
+
+    def next_week(self):
+        """기준일(보고서 date) 다음 주 날짜를 요일과 함께 계산한다(하드코딩 금지)."""
+        d0 = datetime.date.fromisoformat(self.rep['date'])
+        mon = d0 + datetime.timedelta(days=(7 - d0.weekday()) % 7 or 7)
+        wd = '월화수목금토일'
+        f = lambda n: (lambda x: f'{x.month}/{x.day}({wd[x.weekday()]})')(mon + datetime.timedelta(days=n))
+        return dict(mon=f(0), wed=f(2), thu=f(3), later=f(11))
 
     def gkey(self, pref):
         return next(k for k in self.rep['goal'] if k.startswith(pref))
@@ -774,18 +782,19 @@ class Report:
         onl = next((x for x in R['channels'] if x['name'] == '온라인'), None)
         top5 = ', '.join(r[1] for r in rows2[:3]) or '-'
         owners = sorted({r[3] for r in rows2 if r[3] != '-'})
+        nw = self.next_week()
         acts = [
-            [1, '일 목표 갭 일일 점검', f'잔여 필요 일평균 {need:,.0f}백만은 계획 일평균 {plan:,.0f}의 {need / plan:.2f}배. 평일 일 목표 미달 매장 확인', '영업부', '11/10(월)~ 매일', '일 목표 달성률'],
-            [2, '진도 미달 매장 현장 점검', f'우선 점검 매장: {top5} 등 5곳(진도 70% 미만)', ', '.join(owners) or '영업부', '11/12(수)', '진도 달성률'],
+            [1, '일 목표 갭 일일 점검', f'잔여 필요 일평균 {need:,.0f}백만은 계획 일평균 {plan:,.0f}의 {need / plan:.2f}배. 평일 일 목표 미달 매장 확인', '영업부', f"{nw['mon']}~ 매일", '일 목표 달성률'],
+            [2, '진도 미달 매장 현장 점검', f'우선 점검 매장: {top5} 등 5곳(진도 70% 미만)', ', '.join(owners) or '영업부', nw['wed'], '진도 달성률'],
         ]
         if dept:
-            acts.append([3, '백화점 진도 회복 계획', f"백화점 진도 대비 {dept['sales'] / (dept['target'] * share) * 100:.1f}%로 유통 중 최저. 행사·VMD 협의안 정리", '영업부', '11/13(목)', '채널 진도 달성'])
+            acts.append([3, '백화점 진도 회복 계획', f"백화점 진도 대비 {dept['sales'] / (dept['target'] * share) * 100:.1f}%로 유통 중 최저. 행사·VMD 협의안 정리", '영업부', nw['thu'], '채널 진도 달성'])
         if mb.get('new_dc') is not None:
-            acts.append([4, '신상 할인 확대 원인 확인', f"신상 할인율 {mb['new_dc'] * 100:.1f}% (전년 대비 {mb['new_dc_diff']:+.1f}%p). 행사·재고 사유와 수익성 영향 확인", '영업부', '11/13(목)', '신상 할인율'])
+            acts.append([4, '신상 할인 확대 원인 확인', f"신상 할인율 {mb['new_dc'] * 100:.1f}% (전년 대비 {mb['new_dc_diff']:+.1f}%p). 행사·재고 사유와 수익성 영향 확인", '영업부', nw['thu'], '신상 할인율'])
         if onl:
-            acts.append([5, '온라인 하락 원인 확인', f"온라인 {nm}월 전년 같은 기간 대비 {onl['growth'] * 100:+.1f}%. 노출·재고·행사 영향 확인", '온라인 담당', '11/13(목)', '온라인 신장율'])
+            acts.append([5, '온라인 하락 원인 확인', f"온라인 {nm}월 전년 같은 기간 대비 {onl['growth'] * 100:+.1f}%. 노출·재고·행사 영향 확인", '온라인 담당', nw['thu'], '온라인 신장율'])
         f2 = R['forecast'][1]
-        acts.append([len(acts) + 1, '다음 달 선제 대응', f"다음 달 예상 {f2['base'] / 1e6:,.0f}백만으로 목표 {f2['target'] / 1e6:,.0f}백만의 {f2['rate'] * 100:.1f}%. 행사 계획 선제 협의", '영업부', '11/20(목)', '다음 달 진도'])
+        acts.append([len(acts) + 1, '다음 달 선제 대응', f"다음 달 예상 {f2['base'] / 1e6:,.0f}백만으로 목표 {f2['target'] / 1e6:,.0f}백만의 {f2['rate'] * 100:.1f}%. 행사 계획 선제 협의", '영업부', nw['later'], '다음 달 진도'])
         l3 = K.table(ws, a0 + 1, 1, ['순위', '과제', '근거', '담당', '기한', '확인 지표'], acts, None, ['center', 'left', 'left', 'center', 'center', 'center'], row_h=40, bold_cols=(1,))
         for i, rw in enumerate(acts):
             for j in range(1, 6):
