@@ -15,7 +15,7 @@ import verify_xlsx
 
 BLK = '#000000'
 ORDER = ['보고(요약)', '대시보드', '유통별', '월별추이', '증감분석', '매장별', '분석', '일별', '3사비교', '품목·스타일',
-         '이슈·액션', '원데이터', '기준값', '사용설명']
+         '이슈·액션', '검증', '원데이터', '기준값', '사용설명']
 DESC = [('보고(요약)', '회사 양식 보고 1~2쪽: 실적 요약, 유통별 실적, 월별 트렌드, 意見'),
         ('대시보드', '핵심 지표 6개, 월별 추이, 유통별 달성률, TOP 10, 확인 필요 매장 (한 장)'),
         ('유통별', '유통별 당월·누계 실적, 진도달성, 구성비, 월별 추이'),
@@ -27,6 +27,7 @@ DESC = [('보고(요약)', '회사 양식 보고 1~2쪽: 실적 요약, 유통�
         ('3사비교', '마스터바니·파리게이츠·세인트앤드류스 비교'),
         ('품목·스타일', '아이템별 매출 구성과 베스트 품번'),
         ('이슈·액션', '점검 항목, 우선 점검 매장, 다음 주 액션 플랜, 프로모션 제안'),
+        ('검증', '원본 대조·합계·부분 기간·극단값 자동 검증 결과'),
         ('원데이터', '매장별 월 실적·목표·TAG·재고 (모든 숫자의 출처)'),
         ('기준값', '일일 보고서에서 가져온 목표·마감 예상 등 입력값 (노란 칸만 수정)')]
 SIZE = {'W': 1090}
@@ -81,9 +82,11 @@ class Report:
             '3사비교': dict(tab=P['steel'], widths=[(0, 0, 1.5), (1, 1, 16), (2, 12, 11.5)]),
             '품목·스타일': dict(tab=P['steel'], widths=[(0, 0, 1.5), (1, 1, 20), (2, 12, 12)]),
             '이슈·액션': dict(tab='#C00000', widths=[(0, 0, 1.5), (1, 1, 9), (2, 2, 40), (3, 3, 66), (4, 5, 14), (6, 6, 24)]),
+            '검증': dict(tab='#548235', widths=[(0, 0, 1.5), (1, 1, 9), (2, 2, 44), (3, 5, 15), (6, 6, 11), (7, 7, 62)]),
             '기준값': dict(tab=P['grey'], widths=[(0, 0, 1.5), (1, 1, 30), (2, 2, 16), (3, 3, 52)]),
         }
         self.order, self.desc = ORDER, DESC
+        self.cells, self.checks = {}, []
 
     def base_data(self):
         D = dict(self.ytd)
@@ -96,7 +99,7 @@ class Report:
         self.ctx = ctx
         self.K = ctx['K']
         self.s_base(); self.s_summary(); self.s_waterfall(); self.s_daily()
-        self.s_brands(); self.s_items(); self.s_issues()
+        self.s_brands(); self.s_items(); self.s_issues(); self.s_checks()
 
     def a(self, k):
         return self.addr[k]
@@ -157,6 +160,7 @@ class Report:
             ws.write(6, 1 + j, h, cf(**hk))
             K.put(ws, 7, 1 + j, v, cf(**vk))
         K.threshold(ws, 'E8'); K.threshold(ws, 'I8')
+        self.cells.update(sum_target='B8', sum_sales='C8', sum_prog='E8', sum_fc_rate='I8')
         prog = c['ST']['mach']
         mg = self.m_growth()
         lines = [
@@ -234,6 +238,7 @@ class Report:
                 K.put(ws, r, 9, f'=IFERROR(F{e}/I{e}-1,"")', num(NF['yoy']))
             K.put(ws, r, 10, f"=IFERROR(F{e}/F${rowof['합  계'] + 1},\"\")", num(NF['pct']))
         last_r = rowof['합  계']
+        self.cells.update(ch_rows={n: r + 1 for n, r in rowof.items()})
         K.threshold(ws, f'G{r0 + 1}:G{last_r + 1}')
         ws.write(last_r + 1, 1, "※ 진도 달성 = 실적 ÷ 진도 목표(월 목표 × 진도율). 월 목표·진도율은 '기준값' 시트 참조, 누계 신장율은 일일 보고서 기준.",
                  K.fmt(font_size=9, font_color=P['sub']))
@@ -277,12 +282,49 @@ class Report:
             else:
                 ws.write_blank(r, 2 + n_m, None, cf(**tk))
         ws.conditional_format(hr + 3, 2, hr + 3, 2 + n_m, {'type': 'no_blanks', 'format': K.fmt()})
+        self.cells['trend_ytd'] = f"{cn(2 + n_m)}{hr + 2}"
         ws.merge_range(hr + 6, 1, hr + 6, 13, f"※ {nm}월(노랑·빨간 박스)은 1일~{day}일 진행 중이며 전년은 같은 기간입니다. 할인율 = 1 − 실판매 ÷ TAG. 일일 보고서(브랜드 합계) 기준이라 '월별추이' 시트(매장 합계)와 다릅니다.",
                        K.fmt(font_size=9, font_color=P['sub']))
 
-        # 4. 意見
-        o0 = hr + 8
-        sec(o0, '4. ※ 意見 (가안)', '', 13)
+        # 4. 그래프 (회사 규칙: 표 아래, 표와 같은 열 범위, 눈금선 없음, 남색/회색 점선)
+        g0 = hr + 8
+        sec(g0, '4. 그래프 (좌) 월별 매출 추이 (우) 유통별 진도 달성', '[단위:백만원, %]', 13)
+        # 차트용 보조 데이터: 인쇄 영역 밖 오른쪽 열(숨김)
+        hc = 15
+        chn = [n for n in order if n in ('백화점', '아울렛', '대리점·직영점', '온라인')] + ['합  계']
+        for i, n in enumerate(chn):
+            K.put(ws, g0 + i, hc, f"=B{rowof[n] + 1}", K.fmt(font_size=8))
+            K.put(ws, g0 + i, hc + 1, f"=G{rowof[n] + 1}", K.fmt(font_size=8, num_format='0.0%'))
+        ws.set_column(hc, hc + 1, 12, None, {'hidden': True})
+        lc = K.wb.add_chart({'type': 'column'})
+        lc.add_series({'name': '26년', 'categories': ['보고(요약)', hr, 2, hr, 1 + n_m], 'values': ['보고(요약)', hr + 1, 2, hr + 1, 1 + n_m],
+                       'fill': {'color': '#1F3864'}, 'gap': 60,
+                       'data_labels': {'value': True, 'num_format': '#,##0', 'font': {'name': '맑은 고딕', 'size': 8}}})
+        ll = K.wb.add_chart({'type': 'line'})
+        ll.add_series({'name': '25년', 'categories': ['보고(요약)', hr, 2, hr, 1 + n_m], 'values': ['보고(요약)', hr + 2, 2, hr + 2, 1 + n_m],
+                       'line': {'color': '#A6A6A6', 'width': 2, 'dash_type': 'dash'}, 'marker': {'type': 'none'}})
+        lc.combine(ll)
+        lc.set_title({'none': True}); lc.set_size({'width': 500, 'height': 200}); lc.set_legend({'position': 'bottom', 'font': {'name': '맑은 고딕', 'size': 9}})
+        lc.set_chartarea({'border': {'none': True}}); lc.set_plotarea({'border': {'none': True}})
+        lc.set_y_axis({'major_gridlines': {'visible': False}, 'num_font': {'name': '맑은 고딕', 'size': 8, 'color': '#7F7F7F'}, 'num_format': '#,##0', 'line': {'none': True}})
+        lc.set_x_axis({'num_font': {'name': '맑은 고딕', 'size': 9}, 'line': {'color': '#BFBFBF'}})
+        ws.insert_chart(g0 + 2, 1, lc, {'object_position': 1, 'x_offset': 2, 'y_offset': 4})
+        rc_ = K.wb.add_chart({'type': 'bar'})
+        rc_.add_series({'name': '진도 달성', 'categories': ['보고(요약)', g0, hc, g0 + len(chn) - 1, hc], 'values': ['보고(요약)', g0, hc + 1, g0 + len(chn) - 1, hc + 1],
+                        'fill': {'color': '#1F3864'}, 'gap': 50,
+                        'points': [{'fill': {'color': '#1F3864'}}] * (len(chn) - 1) + [{'fill': {'color': '#A6A6A6'}}],
+                        'data_labels': {'value': True, 'num_format': '0.0%', 'font': {'name': '맑은 고딕', 'size': 9, 'bold': True}}})
+        rc_.set_title({'none': True}); rc_.set_size({'width': 545, 'height': 200}); rc_.set_legend({'none': True})
+        rc_.set_chartarea({'border': {'none': True}}); rc_.set_plotarea({'border': {'none': True}})
+        rc_.set_y_axis({'reverse': True, 'num_font': {'name': '맑은 고딕', 'size': 9}, 'line': {'color': '#BFBFBF'}})
+        rc_.set_x_axis({'min': 0, 'max': 1, 'major_gridlines': {'visible': False}, 'num_format': '0%', 'num_font': {'name': '맑은 고딕', 'size': 8, 'color': '#7F7F7F'}, 'line': {'none': True}})
+        rc_.show_hidden_data()
+        ws.insert_chart(g0 + 2, 7, rc_, {'object_position': 1, 'x_offset': 10, 'y_offset': 4})
+        lc.show_hidden_data()
+
+        # 5. 意見
+        o0 = g0 + 13
+        sec(o0, '5. ※ 意見 (가안)', '', 13)
         ops = self.opinions()
         for i, t in enumerate(ops):
             ws.merge_range(o0 + 1 + i, 1, o0 + 1 + i, 13, t, K.fmt(font_size=10.5, text_wrap=True, indent=1, valign='top'))
@@ -376,8 +418,8 @@ class Report:
         wf.set_y_axis({'min': ymin, 'num_format': '#,##0', 'num_font': {'name': '맑은 고딕', 'size': 9, 'color': P['sub']},
                        'line': {'none': True}, 'major_gridlines': {'visible': True, 'line': {'color': '#E7E6E6'}}})
         ws.insert_chart('H6', wf)
-        deltas = sorted(((sum(x['ytd'] - x['ytd_py'] for x in self.ytd['stores'] if x['channel'] == n), n) for n in ch))
-        tot = c['ST']['ytd'] - c['ST']['py']
+        deltas = sorted(((sum(sum(x['m']) - sum(x['p']) for x in self.ytd['stores'] if x['channel'] == n), n) for n in ch))
+        tot = sum(d for d, _ in deltas)
         lines = [f"누계 매출은 전년 대비 {tot:+,.0f}백만(매장 합계 기준)이며, 감소 폭은 " + ', '.join(f'{n} {d:+,.0f}' for d, n in deltas[:3] if d < 0) + ' 순으로 큼',
                  '기여도 = 채널 증감액 ÷ 전체 증감액. 음수 채널이 전체 감소를 만든 비중을 보여줍니다',
                  f'폭포 차트의 세로축은 {ymin:,}부터 시작합니다(증감이 보이도록 축 최소값 조정)']
@@ -417,6 +459,8 @@ class Report:
             K.put(ws, r, 6, f'=IF(D{e}="","",SUM(D${t0 + 2}:D{e}))', z(num_format=NF['m1'], align='right'))
             K.put(ws, r, 7, f'=IF(G{e}="","",G{e}/F{e})', z(num_format=NF['pct'], align='right'))
         a0, a1 = t0 + 1, t0 + len(d)
+        last_i = max(i for i, x in enumerate(d) if x['sales'] is not None)
+        self.cells['daily_cum'] = f'G{t0 + 2 + last_i}'
         K.threshold(ws, f'E{a0 + 1}:E{a1 + 1}'); K.threshold(ws, f'H{a0 + 1}:H{a1 + 1}'); K.databar(ws, f'D{a0 + 1}:D{a1 + 1}')
         K.col_line_chart(ws, 'B10', '일별', (a0, 1, a1, 1), [('실적', (a0, 3, a1, 3))], [('일 목표', (a0, 2, a1, 2))], w=SIZE['W'], h=340,
                          highlight_last=False)
@@ -530,6 +574,163 @@ class Report:
             '워스트 스타일(부진 품번)은 이 자료에 없어 포함하지 않았습니다. 재고·판매율 자료가 연결되면 추가하세요'], '※', 22)
         K.footer(ws, ns + 4, 12, c['author'], 1)
 
+    # ------------------------------------------------------------------ PPT용 데이터
+    def deck_data(self):
+        """build_report_deck.js 가 읽는 요약 JSON. 엑셀과 같은 숫자를 한 곳에서 내보낸다."""
+        R, Y, nm = self.rep, self.ytd, self.nm
+        g = R['goal']; k = R['kpi']; fc = R['forecast'][0]; f2 = R['forecast'][1]
+        prog = g[self.gkey('경과 진도')]['amount']
+        share = prog / k['month']['target']
+        ch = [dict(name=x['name'], sales=M(x['sales']), target=M(x['target']), prog=x['sales'] / (x['target'] * share), growth=x['growth'])
+              for x in R['channels'] if '합' not in x['name'] and x['target']]
+        S = Y['stores']
+        chans = ['백화점', '아울렛', '대리점', '직영점', '온라인', '기타']
+        wf = [dict(name=n, delta=sum(sum(x['m']) - sum(x['p']) for x in S if x['channel'] == n)) for n in chans]   # 엑셀(월별 합계)과 같은 기준
+        mb = next((b for b in R['brands'] if b['name'] == '마스터바니'), {})
+        onl = next((x for x in R['channels'] if x['name'] == '온라인'), None)
+        cnt = collections.Counter(x['judge'] for x in R['checks'] if '비즈알파' not in x['item'])
+        neg = 0
+        for gr in reversed(self.m_growth()):
+            if gr < 0: neg += 1
+            else: break
+        ex = getattr(self, 'deck_extra', {})
+        return dict(
+            month=nm, asof=R['base_text'].split('|')[0].replace('기준일 :', '').strip(), author=R['author'],
+            month_sales=M(k['month']['sales']), month_target=M(k['month']['target']), month_rate=k['month']['rate'], month_growth=k['month']['growth'],
+            month_ly=M(k['month']['ly']), progress_target=M(prog), progress_rate=k['month']['sales'] / prog,
+            fc_base=M(fc['base']), fc_low=M(fc['low']), fc_high=M(fc['high']), fc_rate=fc['rate'], fc_vs_ly=fc['vs_ly'],
+            need_daily=M(g[self.gkey('잔여 필요 일평균')]['amount']), plan_daily=M(g[self.gkey('잔여 일목표')]['amount']),
+            days_left=self.days_left(), y_day_sales=M(g[next(kk for kk in g if kk.startswith('어제') and kk.endswith('실적'))]['amount']),
+            ytd_sales=M(k['ytd']['sales']), ytd_target=M(k['ytd']['target']), ytd_rate=k['ytd']['rate'], ytd_growth=k['ytd']['growth'],
+            ytd_short=M(k['ytd']['short']), neg_months=neg,
+            channels=ch, monthly=[dict(month=m['month'], sales=M(m['sales']), ly=M(m['ly']), growth=m.get('growth')) for m in R['mb_monthly']],
+            waterfall=wf, new_dc=mb.get('new_dc'), new_dc_diff=mb.get('new_dc_diff'), online_growth=onl['growth'] if onl else None,
+            dec_base=M(f2['base']), dec_target=M(f2['target']), dec_rate=f2['rate'],
+            judges=dict(cnt), priority=[dict(rank=r[0], name=r[1], basis=r[2], owner=r[3], channel=r[4], prog=r[5]) for r in ex.get('priority', [])],
+            actions=[dict(rank=a[0], task=a[1], basis=a[2], owner=a[3], due=a[4], metric=a[5]) for a in ex.get('actions', [])],
+            promos=[dict(id=p[0], title=p[1], basis=p[2], target=p[3], period=p[4], metric=p[5]) for p in ex.get('promos', [])],
+            diff_ytd_py=M(R['kpi']['ytd']['ly']) - sum(x['ytd_py'] for x in S))
+
+    # ------------------------------------------------------------------ 카톡 보고문
+    def kakao_text(self):
+        """표 없는 줄바꿈 텍스트 버전(카톡 보고용). deck_data 와 같은 숫자를 쓴다."""
+        d = self.deck_data()
+        f = lambda v: f'{v:,.0f}'
+        p = lambda v, n=1: f'{v * 100:.{n}f}%'
+        sp = lambda v: f'{v * 100:+.1f}%'
+        low = sorted(d['channels'], key=lambda c: c['prog'])
+        wf = sorted(d['waterfall'], key=lambda w: w['delta'])
+        tot = sum(w['delta'] for w in wf)
+        L = [f"[MBE {d['month']}월 영업실적 보고(가안) / {d['asof']}]", '',
+             '■ 요약',
+             f"- {d['month']}월 누계 {f(d['month_sales'])}백만 (월 목표 {f(d['month_target'])}의 {p(d['month_rate'])}, 진도 대비 {p(d['progress_rate'])}, 전년 같은 기간 {sp(d['month_growth'])})",
+             f"- 마감 예상 {f(d['fc_base'])}백만 (목표 대비 {p(d['fc_rate'])}), 목표 달성에는 잔여 {d['days_left']}일 일평균 {f(d['need_daily'])}백만 필요 (계획 {f(d['plan_daily'])}, 전일 {f(d['y_day_sales'])})",
+             f"- 1~{d['month']}월 누계 {f(d['ytd_sales'])}백만 (전년 {sp(d['ytd_growth'])}, 누계 목표 {p(d['ytd_rate'])}), 전년비 {d['neg_months']}개월 연속 마이너스", '',
+             '■ 유통별 진도 대비', '- ' + ' / '.join(f"{c['name']} {p(c['prog'])}" for c in low), '',
+             '■ 이슈',
+             f"- 전년 대비 누계 증감 {f(tot)}백만 중 {wf[0]['name']} {f(wf[0]['delta'])} ({wf[0]['delta'] / tot * 100:.0f}%)",
+             f"- 신상 할인율 {p(d['new_dc'])} (전년 대비 {d['new_dc_diff']:+.1f}%p)",
+             '- 우선 점검 매장: ' + ', '.join(f"{x['name']}({p(x['prog'], 0)})" for x in d['priority'][:3]) + f" 등 {len(d['priority'])}곳", '',
+             '■ 다음 주 액션(제안)']
+        for a in d['actions']:
+            L.append(f"{a['rank']}) {a['task']} - {a['due']}")
+        L += ['', '※ 가안입니다. 숫자는 일일 보고서 기준이며 원인은 가설로, 확인 후 확정합니다.']
+        return '\n'.join(L)
+
+    # ------------------------------------------------------------------ 검증
+    def compute_checks(self, vals):
+        """원본 JSON에서 따로 계산한 기대값 vs 재계산된 파일 값. (구분, 항목, 기대, 실제, 형식, 허용오차(상대), 설명)"""
+        R, Y, nm = self.rep, self.ytd, self.nm
+        V = lambda sh, ref: vals.get((sh, ref))
+        c = self.cells
+        off_m, off_y = R['kpi']['month']['sales'] / 1e6, R['kpi']['ytd']['sales'] / 1e6
+        prog = R['goal'][self.gkey('경과 진도')]['amount'] / 1e6
+        S = Y['stores']
+        st_m, st_y = sum(x['mtd'] for x in S), sum(x['ytd'] for x in S)
+        st_py = sum(x['ytd_py'] for x in S)
+        err = sum(1 for v in vals.values() if isinstance(v, str) and v.startswith('#'))
+        rows = []
+        add = lambda cat, item, exp, act, kind, tol, note: rows.append([cat, item, exp, act, kind, tol, note])
+        add('수식', '수식 오류 개수', 0, err, 'int', 0, '재계산한 모든 수식 칸의 오류 값(0으로 나누기 등) 개수')
+        add('원본 대조', f'{nm}월 누계 (보고(요약) vs 일일 보고서)', off_m, V('보고(요약)', c['sum_sales']), 'm1', 0.0001, '기준값 시트를 거쳐 가져온 값이 원본과 같은지')
+        add('원본 대조', f'{nm}월 진도 달성 (보고(요약) vs 원본 계산)', off_m / prog, V('보고(요약)', c['sum_prog']), 'pct', 0.0001, '누계 ÷ 경과 진도 목표')
+        add('원본 대조', '마감 예상 달성률', R['forecast'][0]['rate'], V('보고(요약)', c['sum_fc_rate']), 'pct', 0.0001, '마감 예상 ÷ 월 목표')
+        add('원본 대조', '월별 매출 합계 = 누계 (MB 월별 트렌드)', off_y, V('보고(요약)', c['trend_ytd']), 'm1', 0.0005, '월별 26년 매출을 더한 값이 누계와 같은지')
+        add('원본 대조', '일별 실적 누적 = 당월 누계', off_m, V('일별', c['daily_cum']), 'm1', 0.0005, '일별 시트 마지막 누계 실적')
+        sh = [V('보고(요약)', f"K{r}") for n, r in c['ch_rows'].items() if n not in ('오프라인 소계', '합  계')]
+        add('합계', '구성비 합 = 100% (유통별)', 1.0, sum(x for x in sh if isinstance(x, (int, float))), 'pct', 0.0001, '합계 행을 제외한 채널 구성비의 합')
+        add('출처 차이', f'{nm}월 당월: 매장 합계(마스터 DB) vs 공식', off_m, V('대시보드', 'B7'), 'm1', 0.001, '대시보드·매장별은 마스터 DB 합계. 0.1% 이내면 통과')
+        add('출처 차이', f'{nm}월 누계: 매장 합계 vs 공식', off_y, V('대시보드', 'F7'), 'm1', 0.001, '1~11월 누계')
+        add('출처 차이', '누계 전년 동기: 매장 합계 vs 공식', R['kpi']['ytd']['ly'] / 1e6, st_py, 'm1', 0.001,
+            '매장 행에 배분되지 않은 금액이 있어 보임. 원인은 자료 제공 쪽 확인 필요(누계 전년비 -7.2% vs 공식 -8.2%)')
+        add('출처 차이', f'{nm}월 진도 달성: 대시보드(매장 합계) vs 공식', off_m / prog, V('대시보드', 'D7'), 'pct', 0.001, '같은 정의(전체 실적 ÷ 진도 목표)')
+        # 극단값
+        ext = []
+        for ch in ('백화점', '아울렛', '대리점', '직영점', '온라인', '기타'):
+            for j in range(nm):
+                p = sum(x['p'][j] for x in S if x['channel'] == ch); m = sum(x['m'][j] for x in S if x['channel'] == ch)
+                if p > 0 and abs(m / p - 1) > 0.5:
+                    ext.append(f'{ch} {j + 1}월 {(m / p - 1) * 100:+.0f}%')
+        add('극단값', '유통×월 전년비 ±50% 초과 셀', None, len(ext), 'int', None, ', '.join(ext[:6]) + (' …' if len(ext) > 6 else '') + ' · 규모가 작은 채널이라 해석에 주의')
+        no_t = [x for x in S if x['active'] == '운영' and not x['month_tgt']]
+        add('결측', f'월 목표가 없는 운영 매장', None, len(no_t), 'int', None,
+            f"실적 {sum(x['mtd'] for x in no_t):,.1f}백만이 채널 실적에는 포함되고 매장별 달성률은 비어 있음")
+        add('기간', '부분 기간 비교', None, None, 'txt', None, f'{R["kpi"]["month"]["label"]} 기준으로 전년 같은 기간과 비교합니다(전월 전체와 비교하지 않음)')
+        tot = sum(r[2] for r in self.sales['rows'])
+        cov = {}
+        for key in ('top_items', 'top_styles'):
+            agg = sum(v for l in self.sales[key].values() for _, v, _q in l)
+            cov[key] = agg / tot
+        add('범위', '아이템 구성 포괄 범위', None, cov['top_items'], 'pct', None, '매장별 상위 아이템 합산. 전체 판매 자료가 있으면 교체')
+        add('범위', '베스트 품번 포괄 범위', None, cov['top_styles'], 'pct', None, '34% 수준이라 순위는 참고용')
+        return rows
+
+    def s_checks(self):
+        K, c = self.K, self.ctx
+        ws, nm = c['sheets']['검증'], self.nm
+        K.title(ws, 1, 1, 7, '자료 검증 결과 (자동)', c['asof'])
+        K.section(ws, 3, 1, 7, 'Ⅰ. 검증 항목', '')
+        hf = K.fmt(bold=True, align='center', bg_color=P['navy'], font_color=P['white'], border=1, border_color=P['line'], text_wrap=True)
+        for j, h in enumerate(['구분', '검증 항목', '기대(원본)', '실제(파일)', '차이', '판정', '설명']):
+            ws.write(5, 1 + j, h, hf)
+        nfs = {'m1': '#,##0.0', 'pct': '0.00%', 'int': '#,##0', 'txt': 'General'}
+        r = 6
+        for cat, item, exp, act, kind, tol, note in (self.checks or []):
+            ws.set_row(r, 30)
+            z = lambda **k: K.fmt(border=1, border_color=P['line'], text_wrap=True, **k)
+            ws.write(r, 1, cat, z(align='center')); ws.write(r, 2, item, z(align='left', bold=True))
+            nf = nfs[kind]
+            diff = None
+            if isinstance(exp, (int, float)) and isinstance(act, (int, float)):
+                diff = act - exp
+                if abs(diff) < 1e-9:
+                    diff = 0
+                ok = (abs(diff) <= (0 if tol == 0 else tol * max(abs(exp), 1e-9))) if tol is not None else True
+                verdict = '통과' if ok else '주의'
+            else:
+                verdict = '참고' if tol is None else '주의'
+            if tol is None and isinstance(act, (int, float)):
+                verdict = '참고'
+            if kind == 'txt':
+                verdict = '통과'
+            ws.write(r, 3, exp if isinstance(exp, (int, float)) else '-', z(align='right', num_format=nf))
+            ws.write(r, 4, act if isinstance(act, (int, float)) else '-', z(align='right', num_format=nf))
+            ws.write(r, 5, diff if diff is not None else '-', z(align='right', num_format=('+' + nf + ';-' + nf + ';0') if kind != 'txt' else 'General'))
+            ws.write(r, 6, verdict, z(align='center', bold=True, font_color={'통과': P['blue'], '주의': '#C55A11', '참고': P['sub']}[verdict]))
+            ws.write(r, 7, note, z(align='left', font_size=9))
+            r += 1
+        last = r - 1
+        ws.merge_range(4, 2, 4, 7, '', K.fmt())
+        K.put(ws, 4, 2, f'="통과 "&COUNTIF(G7:G{last + 1},"통과")&"건 · 주의 "&COUNTIF(G7:G{last + 1},"주의")&"건 · 참고 "&COUNTIF(G7:G{last + 1},"참고")&"건"',
+              K.fmt(bold=True, font_size=11, font_color=P['navy']))
+        K.section(ws, r + 1, 1, 7, 'Ⅱ. 종합 판단', '')
+        K.notes(ws, r + 2, 1, 7, [
+            '종합: 주의사항을 밝히고 공유 가능. 공식 보고서 기준 숫자는 모두 일치하며, 매장 단위 합계와의 차이는 아래 주의 항목에 정리했습니다',
+            '공유 시 필수 문구: 누계 전년 동기는 매장 합계가 공식보다 작아(약 521백만) 매장 기준 누계 전년비(-7.2%)와 공식(-8.2%)이 다릅니다',
+            '공유 시 필수 문구: 품목·품번 분석은 매장별 상위 항목 합산이라 전체를 대표하지 않습니다(아이템 78%, 품번 34%)',
+            '소규모 채널(기타·직영점)의 ±50% 초과 변동은 규모가 작아 추세로 읽지 않는 것이 안전합니다'], '▶', 24)
+        K.footer(ws, r + 8, 7, c['author'], 1)
+
     # ------------------------------------------------------------------ 이슈·액션
     def s_issues(self):
         K, c, R, Y = self.K, self.ctx, self.rep, self.ytd
@@ -601,6 +802,7 @@ class Report:
             for j in range(1, 6):
                 ws.write(q0 + 2 + i, 1 + j, rw[j], K.fmt(border=1, border_color=P['line'], align='left' if j < 3 else 'center', text_wrap=True,
                                                         bold=(j == 1), **({'bg_color': P['mist']} if i % 2 else {})))
+        self.deck_extra = dict(priority=rows2, actions=acts, promos=promos)
         K.notes(ws, l4 + 2, 1, 6, ['담당·기한은 제안이며 확정 전 조정 필요합니다. 본사 담당은 매장 정보의 본사 담당자 기준입니다',
                                    '원인은 가설로만 적었습니다. 확인된 사실은 일일 보고서 숫자뿐입니다'], '※', 22)
         K.footer(ws, l4 + 5, 6, c['author'], 1)
@@ -620,8 +822,15 @@ def main():
     if bad:
         print('수식 오류:', list(bad.items())[:10])
     clean = {k: ('' if v is None else v) for k, v in vals.items()}
+    rep.ctx = None
+    checks = rep.compute_checks(vals)
     rep2 = Report(a.data, a.date)
+    rep2.checks = checks
     B.build(a.out, D, clean, a.author, extra=rep2)
+    json.dump(rep2.deck_data(), open(os.path.splitext(a.out)[0] + '_deck.json', 'w', encoding='utf8'), ensure_ascii=False, indent=1)
+    open(os.path.splitext(a.out)[0] + '_카톡.txt', 'w', encoding='utf8').write(rep2.kakao_text())
+    for ch in checks:
+        print('  검증', ch[0], '|', ch[1], '|', ch[2], '->', ch[3])
     os.remove(tmp)
     print('완료:', a.out, '| 수식', len(k1.fcells), '개 | 오류', len(bad))
 
