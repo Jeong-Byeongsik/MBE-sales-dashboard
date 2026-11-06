@@ -91,7 +91,7 @@ stats.forEach((st, i) => {
 s.addText([
   { text: `목표 달성에는 잔여 ${D.days_left}일 일평균 ${fmt(D.need_daily)}백만원이 필요합니다. 계획 일평균 ${fmt(D.plan_daily)}의 ${(D.need_daily / D.plan_daily).toFixed(2)}배이고 전일 실적은 ${fmt(D.y_day_sales)}입니다`, options: { bullet: true, breakLine: true, paraSpaceAfter: 8 } },
   { text: `1~${D.month}월 누계 ${fmt(D.ytd_sales)}백만원으로 누계 목표 ${fmt(D.ytd_target)}의 ${pct(D.ytd_rate)}, 전년 대비 ${spct(D.ytd_growth)}입니다`, options: { bullet: true, breakLine: true, paraSpaceAfter: 8 } },
-  { text: `전년비는 ${D.neg_months}개월 연속 마이너스입니다`, options: { bullet: true } },
+  { text: D.neg_months >= 2 ? `전년비는 ${D.neg_months}개월 연속 마이너스입니다` : `전년 같은 기간 대비 ${spct(D.month_growth)}입니다`, options: { bullet: true } },
 ], { x: 0.6, y: 4.65, w: 12.1, h: 1.9, fontSize: 16, color: C.text1, margin: 0, valign: "top", isTextBox: true, objectName: "요약 문장" });
 caption(s, "기준: 일일 보고서(ERP). 진도 대비 = 실적 ÷ (월 목표 × 일 목표 진도).");
 s.addNotes("결론 먼저. 모든 숫자는 일일 보고서 공식 기준입니다. 마감 예상은 전년 월별 비중과 주중·주말 가중으로 추정한 값입니다.");
@@ -100,7 +100,7 @@ s.addNotes("결론 먼저. 모든 숫자는 일일 보고서 공식 기준입니
 pres.addSection({ title: "실적 분석" });
 s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "실적 분석" });
 const low = [...D.channels].sort((a, b) => a.prog - b.prog)[0];
-s.addText(`${low.name}이 진도 대비 ${pct(low.prog)}로 가장 낮고, 전년 대비 하락은 ${D.neg_months}개월째입니다`, { placeholder: "title" });
+s.addText(`${low.name}이 진도 대비 ${pct(low.prog)}로 가장 낮고` + (D.neg_months >= 2 ? `, 전년 대비 하락은 ${D.neg_months}개월째입니다` : `, 전체는 전년 같은 기간 대비 ${spct(D.month_growth)}입니다`), { placeholder: "title" });
 const chNames = D.channels.map((c) => c.name);
 const chColors = D.channels.map((c) => (c.name === low.name ? H.accent4 : H.accent1)).concat([H.accent6]);
 s.addText("유통별 진도 달성", { x: 0.6, y: 1.5, w: 5.8, h: 0.4, fontSize: 16, bold: true, color: C.text2, margin: 0, isTextBox: true });
@@ -154,7 +154,7 @@ s.addNotes("전년 대비 증감을 유통별로 나눈 값입니다. 마스터 
 pres.addSection({ title: "점검과 실행" });
 s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "점검과 실행" });
 const need = D.judges["확인 필요"] || 0, warn = D.judges["주의"] || 0;
-s.addText(`확인 필요 ${need}건 중 우선 점검 매장 ${D.priority.length}곳과 신상 할인 확대가 핵심입니다`, { placeholder: "title" });
+s.addText(`확인 필요 ${need}건 중 우선 점검 매장 ${D.priority.length}곳과 신상 할인 ${D.new_dc_diff > 0 ? "확대" : "점검"}가 핵심입니다`, { placeholder: "title" });
 s.addText("우선 점검 매장 (진도 70% 미만, 부족액 큰 순)", { x: 0.6, y: 1.5, w: 7.6, h: 0.4, fontSize: 16, bold: true, color: C.text2, margin: 0, isTextBox: true });
 const hdr = (t) => ({ text: t, options: { bold: true, color: "FFFFFF", fill: { color: H.accent1 }, align: "center", fontSize: 14 } });
 const rowsP = [[hdr("순위"), hdr("매장"), hdr("유통"), hdr("진도 달성"), hdr("본사 담당")]].concat(
@@ -164,8 +164,8 @@ const rowsP = [[hdr("순위"), hdr("매장"), hdr("유통"), hdr("진도 달성"
 s.addTable(rowsP, { x: 0.6, y: 1.95, w: 7.6, colW: [0.8, 3.0, 1.2, 1.4, 1.2], rowH: 0.62, fontSize: 14, color: "1B1F2A", valign: "middle", border: { type: "solid", pt: 0.75, color: "D9D9D9" } });
 const risks = [
   { n: `${need}건`, l: "확인 필요 항목", sub: `주의 ${warn}건 · 일일 보고서 자동 판정` },
-  { n: `${pct(D.new_dc)}`, l: "신상 할인율", sub: `전년보다 ${D.new_dc_diff > 0 ? "+" : ""}${D.new_dc_diff.toFixed(1)}%p 확대` },
-  { n: spct(D.online_growth), l: "온라인 전년 같은 기간 대비", sub: "하락 폭이 유통 중 가장 큼" },
+  { n: `${pct(D.new_dc)}`, l: "신상 할인율", sub: `전년보다 ${D.new_dc_diff > 0 ? "+" : ""}${D.new_dc_diff.toFixed(1)}%p ${D.new_dc_diff > 0 ? "확대" : "변동"}` },
+  { n: spct(D.worst_channel.growth), l: `${D.worst_channel.name} 전년 같은 기간 대비`, sub: D.worst_channel.growth < 0 ? "하락 폭이 유통 중 가장 큼" : "증감이 유통 중 가장 낮음" },
 ];
 risks.forEach((r, i) => {
   const y = 1.55 + i * 1.7;
@@ -179,17 +179,10 @@ s.addNotes("우선 점검 매장은 일일 보고서 점검 기준(진도 70% �
 
 // ---------- 6. 다음 주 액션 ----------
 s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "점검과 실행" });
-s.addText("다음 주 액션 6건을 제안합니다 (담당·기한은 확정 전)", { placeholder: "title" });
-const dept = D.channels.find((c) => c.name === "백화점");
 const A = D.actions;
-const short = [
-  `잔여 필요 일평균 ${fmt(D.need_daily)}백만, 계획의 ${(D.need_daily / D.plan_daily).toFixed(2)}배`,
-  `${D.priority.slice(0, 3).map((p) => p.name.replace(/\(.*\)/, "")).join(", ")} 등 5곳`,
-  dept ? `백화점 진도 ${pct(dept.prog)}로 유통 중 최저` : A[2].basis,
-  `신상 할인율 ${pct(D.new_dc)}, 전년 대비 ${D.new_dc_diff > 0 ? "+" : ""}${D.new_dc_diff.toFixed(1)}%p`,
-  `온라인 전년 같은 기간 대비 ${spct(D.online_growth)}`,
-  `다음 달 예상 ${fmt(D.dec_base)} / 목표 ${fmt(D.dec_target)} (${pct(D.dec_rate)})`,
-];
+const dept = D.low_channel;
+s.addText(`다음 주 액션 ${A.length}건을 제안합니다 (담당·기한은 확정 전)`, { placeholder: "title" });
+const short = A.map((a) => a.basis.split('. ')[0].replace(/\(진도 70% 미만\)/, '').trim());
 const ownerShort = (o) => (o.includes(",") ? o.split(",")[0].trim() + " 외" : o);
 const rowsA = [[hdr("과제"), hdr("근거"), hdr("담당"), hdr("기한")]].concat(A.map((a, i) => [
   { text: a.task, options: { bold: true } }, { text: short[i] }, { text: ownerShort(a.owner), options: { align: "center" } }, { text: a.due.replace("~ 매일", "~"), options: { align: "center" } }]));
@@ -214,9 +207,9 @@ D.promos.forEach((p, i) => {
 });
 s.addText("결정 요청", { x: 8.6, y: 1.6, w: 4.1, h: 0.5, fontSize: 22, bold: true, color: C.accent3, margin: 0, isTextBox: true });
 s.addText([
-  { text: "다음 주 액션 6건의 담당과 기한 확정", options: { bullet: { type: "number" }, breakLine: true, paraSpaceAfter: 14 } },
+  { text: `다음 주 액션 ${A.length}건의 담당과 기한 확정`, options: { bullet: { type: "number" }, breakLine: true, paraSpaceAfter: 14 } },
   { text: "프로모션 A안·B안 진행 여부", options: { bullet: { type: "number" }, breakLine: true, paraSpaceAfter: 14 } },
-  { text: "하락 원인(온라인·백화점) 확인 담당 지정", options: { bullet: { type: "number" } } },
+  { text: `하락 원인(${[...new Set([D.worst_channel.name, D.low_channel.name])].join("·")}) 확인 담당 지정`, options: { bullet: { type: "number" } } },
 ], { x: 8.6, y: 2.25, w: 4.1, h: 3.4, fontSize: 18, color: "FFFFFF", margin: 0, valign: "top", isTextBox: true, objectName: "결정 요청 목록" });
 s.addText("가안입니다. 원인은 가설이며 효과는 실행 후 측정합니다.", { x: 8.6, y: 5.8, w: 4.1, h: 0.5, fontSize: 12, color: C.accent2, margin: 0, isTextBox: true });
 s.addNotes("프로모션은 가설 기반 제안입니다. 승인되면 대상 매장과 기간을 확정하고 행사 전후 일 매출·객단가로 효과를 측정합니다.");
