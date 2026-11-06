@@ -3,18 +3,12 @@
 이 레포는 크리스에프앤씨 마스터바니에디션(MBE) 영업 담당자의 매출 대시보드입니다.
 아래 규칙은 이 레포의 모든 세션에 자동 적용합니다.
 
-## 자동 적용 스킬
+## 영업 공통 규칙 (모든 세션 공통 파일을 불러옵니다)
 
-| 상황 | 쓸 스킬 | 위치 |
-|---|---|---|
-| 대시보드·보고 화면(HTML, 아티팩트)을 만들거나 고칠 때 | `unslop` | 이 레포 `.claude/skills/unslop` |
-| 아티팩트 페이지를 새로 만들 때 | `artifact-design` | 기본 제공 |
-| 매장 매출 엑셀로 주간·월간 실적 보고와 다음 주 액션 플랜을 만들 때 | `mbe-weekly-sales-report` | 계정 스킬 |
-| 백화점 매장 방문 후 임원용 카카오톡 보고를 쓸 때 | `mbe-field-visit-report` | 계정 스킬 |
-| 매출·재고·실적 엑셀을 보고용으로 정리할 때 | `mbe-excel-report-style` | 계정 스킬 |
-| 경쟁 브랜드 분석, 파이프라인·예상 점검, 입점·프로모션 제안서 | `sales`, `b2b-sales-enablement` 플러그인 | `.claude/settings.json`으로 활성화(Sales). B2B는 직접 설치 |
+@claude-config/sales-rules.md
 
-요청이 위 상황에 해당하면 사용자가 스킬 이름을 말하지 않아도 먼저 해당 스킬을 불러서 그 절차를 따릅니다.
+이 레포 전용 추가 사항: 대시보드 화면 작업은 `unslop`, 엑셀 작업은 `excel-master`(둘 다 이 레포 `.claude/skills/`)를 씁니다.
+Sales 플러그인은 `.claude/settings.json`으로 활성화되고, B2B 플러그인은 직접 설치합니다.
 
 ## 화면 작업 기본 원칙 (unslop 기준)
 
