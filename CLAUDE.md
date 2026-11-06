@@ -7,7 +7,7 @@
 
 @claude-config/sales-rules.md
 
-이 레포 전용 추가 사항: 대시보드 화면 작업은 `unslop`(이 레포 `.claude/skills/unslop`)을 씁니다.
+이 레포 전용 추가 사항: 대시보드 화면 작업은 `unslop`, 엑셀 작업은 `excel-master`(둘 다 이 레포 `.claude/skills/`)를 씁니다.
 Sales 플러그인은 `.claude/settings.json`으로 활성화되고, B2B 플러그인은 직접 설치합니다.
 
 ## 화면 작업 기본 원칙 (unslop 기준)

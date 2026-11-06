@@ -3,7 +3,8 @@
 H="${HOME:-/root}"
 mkdir -p "$H/.claude/skills"
 if [ ! -d "$H/.claude/skills/unslop" ]; then
-  git clone --depth 1 -q https://github.com/heydamir/unslop /tmp/unslop-src     && cp -r /tmp/unslop-src/skills/unslop "$H/.claude/skills/"
+  git clone --depth 1 -q https://github.com/heydamir/unslop /tmp/unslop-src \
+    && cp -r /tmp/unslop-src/skills/unslop "$H/.claude/skills/"
   rm -rf /tmp/unslop-src
 fi
 cat > "$H/.claude/sales-rules.md" <<'RULES'
@@ -15,7 +16,8 @@ cat > "$H/.claude/sales-rules.md" <<'RULES'
 
 ## 스킬 선택표
 요청이 아래에 해당하면 스킬 이름을 말하지 않아도 먼저 불러서 따릅니다.
-- 매출·재고·실적 엑셀 정리, 서식: mbe-excel-report-style, xlsx
+- 엑셀(.xlsx)로 만드는 모든 영업 자료(매출, 재고, 실적, 분석): excel-master
+  (함께: mbe-excel-report-style, xlsx)
 - 주간·월간 영업 실적 보고, 액션 플랜: mbe-weekly-sales-report
 - 백화점 방문 후 임원 보고(카카오톡): mbe-field-visit-report
 - 매출 데이터 분석, 검증, 통계: data:analyze, data:validate-data
@@ -40,9 +42,16 @@ cat > "$H/.claude/sales-rules.md" <<'RULES'
 - 마지막은 실행할 다음 액션(담당, 기한)으로 마무리합니다.
 - 화면 자료는 unslop 원칙을 따릅니다. 이모지와 그라디언트를 쓰지 않고,
   핵심 수치만 크게 강조하며, 색은 토큰으로 정의해 라이트·다크를 지원합니다.
+
+## 엑셀 작업 기준 (엑셀의 신)
+엑셀 파일을 만들거나 고칠 때는 excel-master 스킬의 절차와 품질 기준을 반드시 따릅니다.
+- 첫 화면 3초 안에 결론이 보이게 만듭니다. 대시보드, 분석, 상세, 원데이터 순서입니다.
+- 임원·유통사 제출용은 회사 양식(mbe-excel-report-style)을 우선합니다.
+- 분석·내부 공유용은 KPI 카드, 차트, 데이터 막대, 히트맵, 미니 차트로 임팩트를 줍니다.
+- 모든 합계, 비율, 순위는 수식으로 연결하고 값 붙여넣기를 하지 않습니다.
+- 전달 전에 재계산 오류 0건, 원본 합계 대조, 화면 렌더링 확인을 마칩니다.
+- 수식 칸에 계산된 값을 함께 저장해서 휴대폰에서도 숫자가 보이게 합니다.
 RULES
 touch "$H/.claude/CLAUDE.md"
-grep -qs '@sales-rules.md' "$H/.claude/CLAUDE.md" || printf '
-@sales-rules.md
-' >> "$H/.claude/CLAUDE.md"
+grep -qs '@sales-rules.md' "$H/.claude/CLAUDE.md" || printf '\n@sales-rules.md\n' >> "$H/.claude/CLAUDE.md"
 exit 0
