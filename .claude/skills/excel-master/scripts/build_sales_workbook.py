@@ -19,20 +19,20 @@ def stat(D):
     S = D['stores']
     s = lambda k, f=lambda x: True: sum(x[k] for x in S if f(x))
     ytd, py = s('ytd'), s('ytd_py')
-    tg = s('ytd_tgt'); yt = sum(x['ytd'] for x in S if x['ytd_tgt'])
-    mt = s('mtd_tgt'); mm = sum(x['mtd'] for x in S if x['mtd_tgt'])
+    tg = D.get('ytd_full_target') or s('ytd_tgt')      # 공식 누계 목표가 있으면 그것, 없으면 진도 목표 합
+    mt = s('mtd_tgt')
     chs = {}
     for c in CH_ORDER:
         rs = [x for x in S if x['channel'] == c]
         t = sum(x['ytd_tgt'] for x in rs)
         if t:
-            chs[c] = sum(x['ytd'] for x in rs if x['ytd_tgt']) / t
+            chs[c] = sum(x['ytd'] for x in rs) / t          # 채널 전체 실적 ÷ 채널 진도 목표(회사 기준)
     bad = [x for x in S if x['active'] == '운영' and any(k in (x.get('flags') or '') for k in ('미만', '이하'))]
-    return dict(ytd=ytd, py=py, yoy=ytd / py - 1, ach=yt / tg if tg else None, mtd=s('mtd'), mpy=s('mtd_py'),
-                myoy=s('mtd') / s('mtd_py') - 1 if s('mtd_py') else None, mach=mm / mt if mt else None, chs=chs, bad=bad)
+    return dict(ytd=ytd, py=py, yoy=ytd / py - 1, ach=ytd / tg if tg else None, mtd=s('mtd'), mpy=s('mtd_py'),
+                myoy=s('mtd') / s('mtd_py') - 1 if s('mtd_py') else None, mach=s('mtd') / mt if mt else None, chs=chs, bad=bad)
 
 
-def build(path, D, cached=None, author=AUTHOR):
+def build(path, D, cached=None, author=AUTHOR, extra=None):
     K = Kit(path, cached)
     nm, day = D['month'], D['month_day']
     S = D['stores']
@@ -63,13 +63,20 @@ def build(path, D, cached=None, author=AUTHOR):
         return f"'원데이터'!${cn(C[k])}${i + 2}"
 
     # ==================== 시트 생성(탭 순서) ====================
-    dash = K.sheet('대시보드', tab=P['navy'], widths=[(0, 0, 1.5), (1, 12, 12.6)])
-    wch = K.sheet('유통별', tab=P['navy2'], widths=[(0, 0, 1.5), (1, 1, 12), (2, 9, 12.5), (10, 10, 20)])
-    wmo = K.sheet('월별추이', tab=P['navy2'], widths=[(0, 0, 1.5), (1, 1, 14), (2, nm + 2, 9.5)])
-    wst = K.sheet('매장별', tab=P['steel'], widths=[(0, 0, 1.5), (1, 1, 6), (2, 2, 26), (3, 4, 9), (5, 11, 11), (12, 12, 18), (13, 13, 34)])
-    wan = K.sheet('분석', tab=P['steel'], widths=[(0, 0, 1.5), (1, 12, 12.6)])
-    wr = K.sheet('원데이터', tab=P['grey'], zoom=90, landscape=True, hide_grid=False)
-    wh = K.sheet('사용설명', tab=P['gold'], widths=[(0, 0, 1.5), (1, 1, 18), (2, 2, 90)])
+    specs = {
+        '대시보드': dict(tab=P['navy'], widths=[(0, 0, 1.5), (1, 12, 12.6)]),
+        '유통별': dict(tab=P['navy2'], widths=[(0, 0, 1.5), (1, 1, 12), (2, 9, 12.5), (10, 10, 20)]),
+        '월별추이': dict(tab=P['navy2'], widths=[(0, 0, 1.5), (1, 1, 14), (2, nm + 2, 9.5)]),
+        '매장별': dict(tab=P['steel'], widths=[(0, 0, 1.5), (1, 1, 6), (2, 2, 26), (3, 4, 9), (5, 11, 11), (12, 12, 18), (13, 13, 34)]),
+        '분석': dict(tab=P['steel'], widths=[(0, 0, 1.5), (1, 12, 12.6)]),
+        '원데이터': dict(tab=P['grey'], zoom=90, landscape=True, hide_grid=False),
+        '사용설명': dict(tab=P['gold'], widths=[(0, 0, 1.5), (1, 1, 18), (2, 2, 90)]),
+    }
+    order = ['대시보드', '유통별', '월별추이', '매장별', '분석', '원데이터', '사용설명']
+    if extra:
+        specs.update(extra.specs); order = extra.order
+    SHEETS = {nm_: K.sheet(nm_, **specs[nm_]) for nm_ in order}
+    dash, wch, wmo, wst, wan, wr, wh = (SHEETS[k_] for k_ in ('대시보드', '유통별', '월별추이', '매장별', '분석', '원데이터', '사용설명'))
 
     # ==================== 원데이터 ====================
     hin = K.fmt(bold=True, align='center', bg_color=P['grey'], border=1, border_color=P['line'], text_wrap=True)
@@ -113,7 +120,7 @@ def build(path, D, cached=None, author=AUTHOR):
     # ==================== 유통별 ====================
     K.title(wch, 1, 1, 10, '유통별 실적 현황', asof)
     K.section(wch, 3, 1, 10, '1. 유통별 실적', '[단위:백만원, %]')
-    hdr = ['유통', '운영 매장', f'{nm}월 매출', f'{nm}월 진도달성', f'{nm}월 전년비', '누계 매출', '누계 달성', '누계 전년비', '구성비', '월별 추이']
+    hdr = ['유통', '운영 매장', f'{nm}월 매출', f'{nm}월 진도달성', f'{nm}월 전년비', '누계 매출', '누계 달성(진도)', '누계 전년비', '구성비', '월별 추이']
     nfs = [None, NF['qty'], NF['m0'], NF['pct'], NF['yoy'], NF['m0'], NF['pct'], NF['yoy'], NF['pct'], None]
     r0 = 5; hr = r0  # 표 머리글 행(0부터)
     data = []
@@ -124,14 +131,14 @@ def build(path, D, cached=None, author=AUTHOR):
         sif = lambda k, extra='': f"SUMIFS({R(k)},{R('ch')},{B}{extra})"
         data.append([c, f"=COUNTIFS({R('ch')},{B},{R('act')},\"운영\")",
                      f"={sif('mtd')}",
-                     f"=IFERROR({sif('mtd', f',{mtg},\">0\"')}/{sif('mtd_tgt')},\"\")",
+                     f"=IFERROR({sif('mtd')}/{sif('mtd_tgt')},\"\")",
                      f"=IFERROR({sif('mtd')}/{sif('mtd_py')}-1,\"\")", f"={sif('ytd')}",
-                     f"=IFERROR({sif('ytd', f',{ytg},\">0\"')}/{sif('ytd_tgt')},\"\")",
+                     f"=IFERROR({sif('ytd')}/{sif('ytd_tgt')},\"\")",
                      f"=IFERROR({sif('ytd')}/{sif('ytd_py')}-1,\"\")", f"=G{e}/G${hr + 2 + len(chans)}", None])
     et = hr + 2 + len(chans)
     data.append(['합  계', f"=SUM(C{hr + 2}:C{et - 1})", f"=SUM({R('mtd')})",
-                 f"=SUMIFS({R('mtd')},{R('mtd_tgt')},\">0\")/SUM({R('mtd_tgt')})", f"=SUM({R('mtd')})/SUM({R('mtd_py')})-1",
-                 f"=SUM({R('ytd')})", f"=SUMIFS({R('ytd')},{R('ytd_tgt')},\">0\")/SUM({R('ytd_tgt')})",
+                 f"=SUM({R('mtd')})/SUM({R('mtd_tgt')})", f"=SUM({R('mtd')})/SUM({R('mtd_py')})-1",
+                 f"=SUM({R('ytd')})", f"=SUM({R('ytd')})/SUM({R('ytd_tgt')})",
                  f"=SUM({R('ytd')})/SUM({R('ytd_py')})-1", f"=SUM(J{hr + 2}:J{et - 1})", None])
     last = K.table(wch, hr, 1, hdr, data, nfs, ['center'] + ['right'] * 8 + ['center'], header='navy', total_last=True, row_h=24, bold_cols=(0,))
     K.databar(wch, f'J{hr + 2}:J{et - 1}'); K.threshold(wch, f'E{hr + 2}:E{et}'); K.threshold(wch, f'H{hr + 2}:H{et}')
@@ -149,7 +156,7 @@ def build(path, D, cached=None, author=AUTHOR):
     wch.set_column(hc, hc + nm - 1, 6, None, {'hidden': True})
     nr = K.notes(wch, last + 2, 1, 10, [
         f'{nm}월은 1일~{day}일 실적이며 전년은 같은 기간 기준입니다.',
-        '진도달성 = 실적 ÷ (월 목표 × 일 목표 진도). 목표가 없는 매장은 달성률 계산에서 제외합니다.',
+        '진도달성 = 채널 전체 실적 ÷ (채널 월 목표 × 일 목표 진도). 목표가 없는 매장의 매출도 채널 실적에 포함합니다(일일 보고서와 같은 기준).',
         '달성률: 100% 이상 파랑 굵게, 90% 미만 빨강. 마이너스는 빨간 ▲.'], bullet='※')
     K.footer(wch, nr + 1, 10, author, 1)
 
@@ -250,11 +257,12 @@ def build(path, D, cached=None, author=AUTHOR):
     yfm = '"전년 대비 "+0.0%;[Red]"전년 대비 "-0.0%;"전년 대비 -"'
     cards = [
         dict(label=f'{nm}월 매출 (1~{day}일)', value=f"=SUM({R('mtd')})", nf='#,##0', sub=f"=SUM({R('mtd')})/SUM({R('mtd_py')})-1", sub_nf=yfm, accent=P['gold']),
-        dict(label=f'{nm}월 진도달성', value=f"=SUMIFS({R('mtd')},{R('mtd_tgt')},\">0\")/SUM({R('mtd_tgt')})", nf='0.0%',
+        dict(label=f'{nm}월 진도달성', value=f"=SUM({R('mtd')})/SUM({R('mtd_tgt')})", nf='0.0%',
              sub=f"=SUM({R('mtd_tgt')})", sub_nf='"진도 목표 "#,##0', accent=P['gold']),
         dict(label='누계 매출', value=f"=SUM({R('ytd')})", nf='#,##0', sub=f"=SUM({R('ytd')})/SUM({R('ytd_py')})-1", sub_nf=yfm, accent=P['navy']),
-        dict(label='누계 달성', value=f"=SUMIFS({R('ytd')},{R('ytd_tgt')},\">0\")/SUM({R('ytd_tgt')})", nf='0.0%',
-             sub=f"=SUM({R('ytd_tgt')})", sub_nf='"진도 목표 "#,##0', accent=P['navy']),
+        dict(label='누계 달성' + ('(누계 목표)' if D.get('bv') else '(진도)'),
+             value=(f"=SUM({R('ytd')})/{D['bv']['ytd_target']}" if D.get('bv') else f"=SUM({R('ytd')})/SUM({R('ytd_tgt')})"), nf='0.0%',
+             sub=(f"={D['bv']['ytd_target']}" if D.get('bv') else f"=SUM({R('ytd_tgt')})"), sub_nf=('"누계 목표 "#,##0' if D.get('bv') else '"진도 목표 "#,##0'), accent=P['navy']),
         dict(label='할인율', value=f"=1-SUM({R('net')})/SUM({R('tag')})", nf='0.0%', sub=f"=SUM({R('tag')})", sub_nf='"TAG "#,##0', accent=P['steel']),
         dict(label='판매율', value=f"=SUM({R('tag')})/(SUM({R('tag')})+SUM({R('stock')}))", nf='0.0%', sub=f"=SUM({R('stock')})",
              sub_nf='"재고(현판가) "#,##0', accent=P['steel']),
@@ -323,7 +331,7 @@ def build(path, D, cached=None, author=AUTHOR):
     # ==================== 사용설명 ====================
     K.title(wh, 1, 1, 2, '사용 설명', None)
     wh.set_row(3, 6)
-    tbl = [('대시보드', '핵심 지표 6개, 월별 추이, 유통별 달성률, TOP 10, 확인 필요 매장, 핵심 해석'),
+    tbl = (extra.desc if extra else None) or [('대시보드', '핵심 지표 6개, 월별 추이, 유통별 달성률, TOP 10, 확인 필요 매장, 핵심 해석'),
            ('유통별', '유통별 당월·누계 실적, 달성률, 구성비, 월별 추이 미니 차트'),
            ('월별추이', '26년·25년·신장율·월 목표 3행 블록과 유통×월 전년비 히트맵'),
            ('매장별', '운영 매장 전체 순위표. 막대·색조·미니 차트, 필터로 골라 보기'),
@@ -345,7 +353,11 @@ def build(path, D, cached=None, author=AUTHOR):
     K.notes(wh, 20, 1, 2, ['원데이터 시트의 회색 머리글 열(월별 매출·전년·목표, TAG·실판매·재고)에 새 값을 덮어쓰면 모든 시트가 자동 계산됩니다.',
                           '매장 수가 바뀌면 원데이터 행을 추가한 뒤 수식 범위를 넓히거나, 이 파일을 다시 생성하세요.',
                           '핵심 해석·확인 필요 매장 문구는 재생성 시 갱신됩니다.'], '•', 36)
-    dash.activate()
+    if extra:
+        ctx = dict(K=K, D=D, R=R, Rop=Rop, cell=cell, C=C, n=n, n_op=n_op, N=N, nm=nm, day=day, asof=asof, chans=chans, ST=ST,
+                   author=author, rows=rows, M0=M0, sheets=SHEETS, hr_ch=hr, hr_mo=hrM)
+        extra.fill(ctx)
+    SHEETS[order[0]].activate()
     K.close()
     return K
 
