@@ -8,154 +8,153 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{
-  --bg:#0a0b0f;--card:#12141c;--card2:#1a1d28;--card3:#222636;
-  --border:#2a2e40;--gold:#e8b86d;--gold2:#f5d08a;
-  --text:#e2e6f0;--sub:#6b7694;
-  --green:#22c55e;--red:#ef4444;--blue:#60a5fa;
-  --purple:#a78bfa;--orange:#fb923c;--teal:#2dd4bf;
+  --bg:#0f1011;--card:#161718;--card2:#1d1e20;--card3:#262729;
+  --border:rgba(255,255,255,.08);--gold:#e8b86d;--gold2:#f2cd91;
+  --text:#ebebe9;--sub:#9a9ca3;--muted:#70727a;
+  --green:#6dbb8a;--red:#e07a72;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;}
-body{font-family:'Apple SD Gothic Neo','Malgun Gothic','Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;}
+body{font-family:'Apple SD Gothic Neo','Malgun Gothic','Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;font-variant-numeric:tabular-nums;}
 
-.hdr{background:linear-gradient(90deg,#0d0f18,#141828 50%,#0d0f18);border-bottom:1px solid var(--border);padding:0 28px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
-.hdr-brand{font-size:17px;font-weight:800;letter-spacing:1.5px;color:var(--gold);}
-.hdr-sub{font-size:11px;color:var(--sub);letter-spacing:.5px;}
+.hdr{background:var(--card);border-bottom:1px solid var(--border);padding:0 28px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.hdr-brand{font-size:16px;font-weight:600;letter-spacing:.06em;color:var(--gold);}
+.hdr-sub{font-size:12px;color:var(--sub);margin-top:2px;}
 .hdr-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
 .hdr-date-wrap{display:flex;align-items:center;gap:8px;}
 .hdr-date-lbl{font-size:11px;color:var(--sub);}
-.date-input{background:var(--card2);border:1px solid var(--border);color:var(--gold);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;outline:none;cursor:pointer;width:130px;}
+.date-input{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 12px;font-size:12px;font-weight:500;outline:none;cursor:pointer;width:136px;}
 .date-input:focus{border-color:var(--gold);}
-.upload-btn{background:var(--gold);color:#0a0b0f;border:none;border-radius:6px;padding:7px 16px;font-weight:700;font-size:12px;cursor:pointer;transition:all .2s;}
-.upload-btn:hover{background:var(--gold2);transform:translateY(-1px);}
+.upload-btn{display:inline-flex;align-items:center;gap:8px;background:var(--gold);color:#0a0b0f;border:none;border-radius:8px;padding:8px 16px;font-weight:600;font-size:12px;cursor:pointer;transition:color .15s ease,background-color .15s ease,border-color .15s ease;}
+.upload-btn:hover{background:var(--gold2);}
 #fileInput{display:none;}
 
-.filter-bar{background:var(--card);border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:center;position:sticky;top:64px;z-index:99;height:50px;overflow-x:auto;}
+.filter-bar{background:var(--card);border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:center;position:sticky;top:64px;z-index:99;height:48px;overflow-x:auto;}
 .filter-bar::-webkit-scrollbar{height:0;}
 .mode-btns{display:flex;gap:2px;margin-right:20px;flex-shrink:0;}
-.mode-btn{padding:7px 18px;border:none;border-radius:6px;background:transparent;color:var(--sub);cursor:pointer;font-size:13px;font-weight:600;transition:all .2s;white-space:nowrap;}
+.mode-btn{padding:8px 16px;border:none;border-radius:8px;background:transparent;color:var(--sub);cursor:pointer;font-size:13px;font-weight:600;transition:color .15s ease,background-color .15s ease,border-color .15s ease;white-space:nowrap;}
 .mode-btn:hover{color:var(--text);background:var(--card2);}
-.mode-btn.active{background:var(--gold);color:#0a0b0f;}
+.mode-btn.active{background:var(--card3);color:var(--text);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);}
 .divider{width:1px;background:var(--border);height:28px;margin:0 16px;flex-shrink:0;}
-.chip-row{display:flex;gap:6px;align-items:center;overflow-x:auto;}
+.chip-row{display:flex;gap:8px;align-items:center;overflow-x:auto;}
 .chip-row::-webkit-scrollbar{height:0;}
-.chip{padding:5px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--sub);cursor:pointer;font-size:12px;font-weight:600;transition:all .2s;white-space:nowrap;}
-.chip:hover{border-color:var(--gold);color:var(--text);}
-.chip.active{border-color:var(--gold);background:rgba(232,184,109,.12);color:var(--gold);}
+.chip{padding:4px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--sub);cursor:pointer;font-size:12px;font-weight:600;transition:color .15s ease,background-color .15s ease,border-color .15s ease;white-space:nowrap;}
+.chip:hover{border-color:rgba(255,255,255,.2);color:var(--text);}
+.chip.active{border-color:rgba(255,255,255,.16);background:var(--card3);color:var(--text);}
 .store-search-wrap{position:relative;margin-left:8px;}
-.store-search{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:5px 14px 5px 30px;font-size:12px;outline:none;width:200px;transition:all .2s;}
-.store-search:focus{border-color:var(--gold);width:260px;}
+.store-search{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 12px 4px 32px;font-size:12px;outline:none;width:240px;transition:border-color .15s ease;}
+.store-search:focus{border-color:var(--gold);}
 .store-search::placeholder{color:var(--sub);}
-.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--sub);font-size:12px;pointer-events:none;}
-.store-dd{position:absolute;top:calc(100% + 6px);left:0;background:var(--card2);border:1px solid var(--border);border-radius:10px;width:300px;max-height:300px;overflow-y:auto;z-index:200;display:none;box-shadow:0 8px 30px rgba(0,0,0,.5);}
+.search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--sub);pointer-events:none;}
+.store-dd{position:absolute;top:calc(100% + 8px);left:0;background:var(--card2);border:1px solid var(--border);border-radius:10px;width:300px;max-height:300px;overflow-y:auto;z-index:200;display:none;box-shadow:0 8px 30px rgba(0,0,0,.5);}
 .store-dd.open{display:block;}
-.dd-item{padding:9px 14px;cursor:pointer;font-size:12px;border-bottom:1px solid rgba(42,46,64,.5);display:flex;align-items:center;gap:8px;}
+.dd-item{padding:8px 16px;cursor:pointer;font-size:12px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:8px;}
 .dd-item:hover{background:var(--card3);}
 .dd-item:last-child{border-bottom:none;}
 .dd-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 
-.kpi-strip{background:var(--card);border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:center;height:72px;overflow-x:auto;}
+.kpi-strip{background:var(--card);border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:center;height:88px;overflow-x:auto;}
 .kpi-strip::-webkit-scrollbar{height:0;}
 .kpi-item{flex:1;min-width:130px;padding:0 20px;border-right:1px solid var(--border);text-align:center;}
 .kpi-item:last-child{border-right:none;}
-.kpi-lbl{font-size:10px;color:var(--sub);letter-spacing:.8px;text-transform:uppercase;margin-bottom:5px;}
-.kpi-val{font-size:20px;font-weight:800;line-height:1;}
-.kpi-chg{font-size:11px;margin-top:4px;font-weight:600;}
-.up{color:var(--green);}.down{color:var(--red);}.neu{color:var(--sub);}.gold{color:var(--gold);}
+.kpi-lbl{font-size:12px;color:var(--sub);margin-bottom:4px;}
+.kpi-val{font-size:24px;font-weight:600;line-height:1;}
+.kpi-chg{font-size:12px;margin-top:4px;font-weight:600;}
+.up{color:var(--green);}.down{color:var(--red);}.neu{color:var(--sub);}.gold{color:var(--text);}
 
 .main{padding:24px 28px;}
-.month-chips{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap;align-items:center;}
-.month-chip{padding:4px 12px;border-radius:16px;border:1px solid var(--border);background:transparent;color:var(--sub);cursor:pointer;font-size:12px;font-weight:600;transition:all .15s;}
-.month-chip:hover{border-color:var(--sub);color:var(--text);}
-.month-chip.active{border-color:var(--blue);background:rgba(96,165,250,.12);color:var(--blue);}
-.month-chip.all.active{border-color:var(--gold);background:rgba(232,184,109,.12);color:var(--gold);}
+.month-chips{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center;}
+.month-chip{padding:4px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--sub);cursor:pointer;font-size:12px;font-weight:600;transition:color .15s ease,background-color .15s ease,border-color .15s ease;}
+.month-chip:hover{border-color:rgba(255,255,255,.2);color:var(--text);}
+.month-chip.active{border-color:rgba(255,255,255,.16);background:var(--card3);color:var(--text);}
 
-.sec-title{font-size:11px;color:var(--sub);letter-spacing:1px;text-transform:uppercase;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.sec-title{font-size:13px;color:var(--sub);font-weight:500;margin-top:16px;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
 .sec-title::after{content:'';flex:1;height:1px;background:var(--border);}
 
 .chart-row{display:grid;gap:16px;margin-bottom:20px;}
 .cols-2{grid-template-columns:1fr 1fr;}
 .cols-3{grid-template-columns:2fr 1fr 1fr;}
 .chart-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;position:relative;overflow:hidden;}
-.chart-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gold),transparent);}
-.chart-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}
+.chart-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;}
 .chart-title .sub{font-size:11px;color:var(--sub);font-weight:400;}
 .chart-wrap{position:relative;}
 .h200{height:200px;}.h260{height:260px;}.h320{height:320px;}
 
 /* 예상마감 카드 - 개선 */
-.fc-strip{background:linear-gradient(135deg,#141828,#1c1f2e);border:1px solid rgba(232,184,109,.25);border-radius:12px;padding:0;margin-bottom:20px;overflow:hidden;}
-.fc-header{padding:14px 24px;border-bottom:1px solid rgba(232,184,109,.15);display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
-.fc-header-title{font-size:13px;font-weight:700;color:var(--gold);}
-.fc-date-info{font-size:11px;color:var(--sub);}
-.fc-method{font-size:10px;color:rgba(232,184,109,.6);padding:3px 8px;border:1px solid rgba(232,184,109,.2);border-radius:10px;}
+.fc-strip{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:0;margin-bottom:20px;overflow:hidden;}
+.fc-header{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.fc-header-title{font-size:14px;font-weight:600;color:var(--text);}
+.fc-date-info{font-size:12px;color:var(--sub);}
+.fc-method{font-size:12px;color:var(--sub);}
 .fc-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0;}
-.fc-item{padding:18px 24px;border-right:1px solid rgba(42,46,64,.5);}
+.fc-item{padding:16px 24px;border-right:1px solid rgba(255,255,255,.06);}
 .fc-item:last-child{border-right:none;}
-.fc-lbl{font-size:10px;color:var(--sub);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;}
-.fc-val{font-size:22px;font-weight:800;color:var(--gold);}
-.fc-sub{font-size:11px;color:var(--sub);margin-top:4px;}
-.fc-badge{display:inline-block;margin-top:6px;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;}
-.fc-badge.pos{background:rgba(34,197,94,.15);color:var(--green);}
-.fc-badge.neg{background:rgba(239,68,68,.15);color:var(--red);}
-.fc-badge.neu{background:rgba(107,118,148,.15);color:var(--sub);}
+.fc-lbl{font-size:12px;color:var(--sub);margin-bottom:8px;}
+.fc-val{font-size:24px;font-weight:600;color:var(--text);}
+.fc-sub{font-size:12px;color:var(--sub);margin-top:4px;}
+.fc-badge{display:inline-block;margin-top:8px;font-size:12px;font-weight:500;}
+.fc-badge.pos{color:var(--green);}
+.fc-badge.neg{color:var(--red);}
+.fc-badge.neu{color:var(--sub);}
 
 /* 잔여일 표시 */
 .day-pills{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap;}
-.day-pill{padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;}
-.day-pill.wd{background:rgba(96,165,250,.15);color:var(--blue);}
-.day-pill.we{background:rgba(251,146,60,.15);color:var(--orange);}
+.day-pill{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;color:var(--sub);background:rgba(255,255,255,.05);}
+.day-pill.we{color:var(--gold);background:rgba(232,184,109,.1);}
 
 .tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);}
 .tbl{width:100%;border-collapse:collapse;font-size:12px;min-width:1100px;}
-.tbl thead th{background:var(--card2);color:var(--sub);padding:10px 12px;text-align:left;font-size:10px;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;}
+.tbl thead th{background:var(--card2);color:var(--sub);padding:12px 12px;text-align:left;font-size:12px;font-weight:500;white-space:nowrap;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;}
 .tbl thead th:hover{color:var(--text);}
-.tbl tbody td{padding:9px 12px;border-bottom:1px solid rgba(42,46,64,.4);white-space:nowrap;vertical-align:middle;}
+.tbl tbody td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.06);white-space:nowrap;vertical-align:middle;}
 .tbl tbody tr{cursor:pointer;}
 .tbl tbody tr:hover td{background:rgba(255,255,255,.025);}
 .tbl tbody tr:last-child td{border-bottom:none;}
-.ch-tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;}
-.mgr-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;}
-.note-btn{background:none;border:1px solid var(--border);color:var(--sub);border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;transition:all .15s;white-space:nowrap;}
-.note-btn:hover{border-color:var(--gold);color:var(--gold);}
-.note-btn.filled{border-color:rgba(232,184,109,.4);color:var(--gold);background:rgba(232,184,109,.06);}
+.ch-tag{display:inline-block;font-size:12px;font-weight:400;color:var(--sub);}
+.mgr-tag{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:400;}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;display:inline-block;}
+.note-btn{background:none;border:1px solid var(--border);color:var(--sub);border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer;transition:color .15s ease,background-color .15s ease,border-color .15s ease;white-space:nowrap;}
+.note-btn:hover{border-color:rgba(255,255,255,.2);color:var(--text);}
+.note-btn.filled{border-color:rgba(232,184,109,.4);color:var(--gold);}
 
-.inactive-toggle{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:var(--sub);}
+.inactive-toggle{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;color:var(--sub);}
 .toggle-sw{width:32px;height:18px;background:var(--border);border-radius:9px;cursor:pointer;position:relative;transition:background .2s;}
 .toggle-sw.on{background:rgba(232,184,109,.4);}
-.toggle-sw::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left .2s;}
-.toggle-sw.on::after{left:16px;}
+.toggle-sw::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:2px;left:2px;transition:transform .15s ease;}
+.toggle-sw.on::after{transform:translateX(14px);}
 
-.mgr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:20px;}
-.mgr-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
-.mgr-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
-.mgr-card-name{font-size:16px;font-weight:800;margin-bottom:12px;}
-.mgr-card-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.mgr-stat-val{font-size:18px;font-weight:700;}
-.mgr-stat-lbl{font-size:10px;color:var(--sub);letter-spacing:.5px;margin-top:2px;}
+.mgr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin-bottom:20px;}
+.mgr-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:color .15s ease,background-color .15s ease,border-color .15s ease;position:relative;overflow:hidden;}
+.mgr-card:hover{border-color:rgba(255,255,255,.2);background:var(--card2);}
+.mgr-card-name{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600;margin-bottom:12px;}
+.mgr-card-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.mgr-stat-val{font-size:20px;font-weight:600;}
+.mgr-stat-lbl{font-size:12px;color:var(--sub);margin-top:2px;}
 .mgr-bar{height:3px;background:var(--border);border-radius:2px;margin-top:12px;overflow:hidden;}
 .mgr-bar-fill{height:100%;border-radius:2px;}
 
-.ch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:20px;}
-.ch-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .2s;}
-.ch-card:hover{border-color:var(--gold);transform:translateY(-2px);}
+.ch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:20px;}
+.ch-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:color .15s ease,background-color .15s ease,border-color .15s ease;}
+.ch-card:hover{border-color:rgba(255,255,255,.2);background:var(--card2);}
 
 .drill-hdr{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
-.drill-name{font-size:20px;font-weight:800;}
+.drill-name{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:600;}
+.ch-card-name{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;margin-bottom:12px;}
 
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;align-items:center;justify-content:center;}
 .overlay.open{display:flex;}
 .modal{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:28px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.6);}
-.modal h3{font-size:15px;font-weight:700;margin-bottom:4px;}
+.modal h3{font-size:16px;font-weight:600;margin-bottom:4px;}
 .modal-sub{font-size:12px;color:var(--sub);margin-bottom:16px;}
 .modal textarea{width:100%;height:110px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px;font-size:13px;font-family:inherit;resize:vertical;outline:none;}
 .modal textarea:focus{border-color:var(--gold);}
 .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;}
-.btn-primary{background:var(--gold);color:#0a0b0f;border:none;padding:8px 20px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;}
+.btn-primary{background:var(--gold);color:#0a0b0f;border:none;padding:8px 20px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;}
 .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--sub);padding:8px 20px;border-radius:8px;font-size:13px;cursor:pointer;}
 .btn-ghost:hover{border-color:var(--sub);color:var(--text);}
 .inactive-row td{opacity:.4;}
 
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
@@ -179,7 +178,7 @@ body{font-family:'Apple SD Gothic Neo','Malgun Gothic','Segoe UI',sans-serif;bac
       <span class="hdr-date-lbl">데이터 기준일</span>
       <input type="date" class="date-input" id="dataDate" value="2026-06-30" onchange="onDateChange()">
     </div>
-    <label class="upload-btn" for="fileInput">↑ 엑셀 업데이트</label>
+    <label class="upload-btn" for="fileInput"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></svg>엑셀 업데이트</label>
     <input type="file" id="fileInput" accept=".xlsx,.xls">
   </div>
 </header>
@@ -194,8 +193,8 @@ body{font-family:'Apple SD Gothic Neo','Malgun Gothic','Segoe UI',sans-serif;bac
   <div class="divider"></div>
   <div class="chip-row" id="subChips"></div>
   <div class="store-search-wrap" id="ssWrap" style="display:none">
-    <span class="search-icon">🔍</span>
-    <input type="text" class="store-search" id="storeSearch" placeholder="매장명 / 담당 검색..." autocomplete="off" oninput="filterDD()">
+    <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input type="text" class="store-search" id="storeSearch" placeholder="매장명, 담당 검색" autocomplete="off" oninput="filterDD()">
     <div class="store-dd" id="storeDd"></div>
   </div>
 </div>
@@ -227,8 +226,8 @@ const MONTHS=['1월','2월','3월','4월','5월','6월'];
 const CH_ORDER=['A (백화점)','H (아울렛)','C (대리점)','O (온라인쇼핑몰)','B (직영점)','Z (기타)'];
 const CH_LABEL={'A (백화점)':'백화점','H (아울렛)':'아울렛','C (대리점)':'대리점(인샵포함)','O (온라인쇼핑몰)':'온라인','B (직영점)':'직영점','Z (기타)':'기타',''  :'기타'};
 const CH_SHORT={'A (백화점)':'백화점','H (아울렛)':'아울렛','C (대리점)':'대리점','O (온라인쇼핑몰)':'온라인','B (직영점)':'직영점','Z (기타)':'기타',''  :'기타'};
-const CH_COLOR={'A (백화점)':'#60a5fa','H (아울렛)':'#f87171','C (대리점)':'#fb923c','O (온라인쇼핑몰)':'#c084fc','B (직영점)':'#4ade80','Z (기타)':'#6b7694',''  :'#6b7694'};
-const MGR_COLOR={'공진규':'#60a5fa','김창균':'#f87171','문지훈':'#4ade80','양승일':'#c084fc','정병식':'#fb923c','미배정':'#6b7694'};
+const CH_COLOR={'A (백화점)':'#60a5fa','H (아울렛)':'#f87171','C (대리점)':'#fb923c','O (온라인쇼핑몰)':'#c084fc','B (직영점)':'#4ade80','Z (기타)':'#9a9ca3',''  :'#9a9ca3'};
+const MGR_COLOR={'공진규':'#60a5fa','김창균':'#f87171','문지훈':'#4ade80','양승일':'#c084fc','정병식':'#fb923c','미배정':'#9a9ca3'};
 const MGRS=['공진규','김창균','문지훈','양승일','정병식'];
 
 // ══ 추정 파라미터 ══
@@ -473,7 +472,7 @@ function fcStrip(stores) {
 
   return `<div class="fc-strip">
     <div class="fc-header">
-      <span class="fc-header-title">🔮 추정마감</span>
+      <span class="fc-header-title">추정마감</span>
       <span class="fc-date-info">기준일 ${info.y}년 ${info.m}월 ${info.d}일(${DOW_KO[new Date(info.y,info.m-1,info.d).getDay()]})</span>
       <span class="fc-method">${methodText}</span>
       ${dayPills?`<div class="day-pills">${dayPills}</div>`:''}
@@ -483,19 +482,19 @@ function fcStrip(stores) {
         <div class="fc-lbl">${info.curMonLabel} ${isMonthEnd?'확정':'추정마감'}</div>
         <div class="fc-val">${fmtM(curForecast)}원</div>
         <div class="fc-sub">현재 ${fmtM(curSales)}원${!isMonthEnd?` · 추가 ${fmtM(curForecast-curSales)}원`:''}</div>
-        <span class="fc-badge ${curGr>=0?'pos':'neg'}">${arr(curGr)} ${Math.abs(curGr).toFixed(1)}% 전년대비</span>
+        <span class="fc-badge ${curGr>=0?'pos':'neg'}">${arr(curGr)} ${Math.abs(curGr).toFixed(1)}% vs 전년</span>
       </div>
       <div class="fc-item">
         <div class="fc-lbl">${info.nextMonLabel} 추정마감</div>
         <div class="fc-val">${fmtM(nextForecast)}원</div>
         <div class="fc-sub">전년 ${info.nextMonLabel} 추정 ${fmtM(prevNextMon)}원</div>
-        <span class="fc-badge ${nextGr>=0?'pos':'neg'}">${arr(nextGr)} ${Math.abs(nextGr).toFixed(1)}% 전년대비</span>
+        <span class="fc-badge ${nextGr>=0?'pos':'neg'}">${arr(nextGr)} ${Math.abs(nextGr).toFixed(1)}% vs 전년</span>
       </div>
       <div class="fc-item">
         <div class="fc-lbl">1~${isMonthEnd?info.m:info.m}월 누계</div>
         <div class="fc-val">${fmtM(active.reduce((a,b)=>a+b.total,0))}원</div>
         <div class="fc-sub">전년 동기 ${fmtM(active.reduce((a,b)=>a+b.prev_year,0))}원</div>
-        <span class="fc-badge ${totalGr>=0?'pos':'neg'}">${arr(totalGr)} ${Math.abs(totalGr).toFixed(1)}%</span>
+        <span class="fc-badge ${totalGr>=0?'pos':'neg'}">${arr(totalGr)} ${Math.abs(totalGr).toFixed(1)}% vs 전년</span>
       </div>
       <div class="fc-item">
         <div class="fc-lbl">최근 3개월 성장률</div>
@@ -517,7 +516,7 @@ function renderContent(){
   else if(mode==='manager'&&!subFilter)     renderMgrGrid(el);
   else if(mode==='manager'&&subFilter)      renderDrill(el,'manager',subFilter);
   else if(mode==='store'&&subFilter)        renderStoreDetail(el,subFilter);
-  else el.innerHTML='<div style="color:var(--sub);text-align:center;padding:60px">← 매장을 검색하여 선택하세요</div>';
+  else el.innerHTML='<div style="color:var(--sub);text-align:center;padding:60px">매장을 검색하여 선택하세요</div>';
 }
 
 function mkInactiveToggle(){
@@ -563,10 +562,10 @@ function renderChGrid(el){
       const ss=getActive(STORES.filter(s=>s.channel===ch));
       const t=ss.reduce((a,b)=>a+b.total,0),p=ss.reduce((a,b)=>a+b.prev_year,0),g=pct(t,p);
       return `<div class="ch-card" onclick="setSubFilter('${ch}');document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active',c.dataset.val==='${ch}'))">
-        <div class="ch-card-name" style="color:${CH_COLOR[ch]||'var(--sub)'};font-size:14px;font-weight:700;margin-bottom:10px">${CH_LABEL[ch]||ch}</div>
-        <div style="font-size:20px;font-weight:800;color:var(--gold)">${fmtM(t)}원</div>
+        <div class="ch-card-name"><i class="dot" style="background:${CH_COLOR[ch]||'var(--sub)'}"></i>${CH_LABEL[ch]||ch}</div>
+        <div style="font-size:20px;font-weight:600">${fmtM(t)}원</div>
         <div style="font-size:11px;color:var(--sub);margin-top:4px">${ss.length}개 매장</div>
-        <div style="font-size:12px;font-weight:700;color:${cc(g)};margin-top:6px">${arr(g)} ${Math.abs(g).toFixed(1)}%</div>
+        <div style="font-size:12px;font-weight:600;color:${cc(g)};margin-top:8px">${arr(g)} ${Math.abs(g).toFixed(1)}%</div>
       </div>`;
     }).join('')}</div>`;
 }
@@ -580,15 +579,14 @@ function renderMgrGrid(el){
       const t=ss.reduce((a,b)=>a+b.total,0),p=ss.reduce((a,b)=>a+b.prev_year,0),g=pct(t,p),sh=allT?(t/allT*100):0;
       const color=MGR_COLOR[m];
       return `<div class="mgr-card" onclick="setSubFilter('${m}');document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active',c.dataset.val==='${m}'))">
-        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${color}"></div>
-        <div class="mgr-card-name" style="color:${color}">${m}</div>
+        <div class="mgr-card-name"><i class="dot" style="background:${color}"></i>${m}</div>
         <div class="mgr-card-stats">
           <div><div class="mgr-stat-val gold">${fmtM(t)}원</div><div class="mgr-stat-lbl">누계 매출</div></div>
           <div><div class="mgr-stat-val ${cls(g)}">${arr(g)} ${Math.abs(g).toFixed(1)}%</div><div class="mgr-stat-lbl">전년대비</div></div>
           <div><div class="mgr-stat-val">${ss.length}개</div><div class="mgr-stat-lbl">유효 매장</div></div>
           <div><div class="mgr-stat-val">${sh.toFixed(1)}%</div><div class="mgr-stat-lbl">점유율</div></div>
         </div>
-        <div class="mgr-bar"><div class="mgr-bar-fill" style="width:${sh}%;background:${color}"></div></div>
+        <div class="mgr-bar"><div class="mgr-bar-fill" style="width:${sh}%;background:var(--sub)"></div></div>
       </div>`;
     }).join('')}</div>`;
 }
@@ -605,8 +603,8 @@ function renderDrill(el,type,val){
   const mG=MONTHS.map((_,i)=>pct(mT[i],mP[i]));
   el.innerHTML=`
     <div class="drill-hdr">
-      <div class="drill-name" style="color:${color}">${label}</div>
-      <div style="font-size:12px;color:var(--sub)">${active.length}개 유효매장 · 누계 ${fmtM(total)}원 · <span style="color:${cc(gr)};font-weight:700">${arr(gr)} ${Math.abs(gr).toFixed(1)}%</span></div>
+      <div class="drill-name"><i class="dot" style="background:${color}"></i>${label}</div>
+      <div style="font-size:12px;color:var(--sub)">${active.length}개 유효매장 · 누계 ${fmtM(total)}원 · <span style="color:${cc(gr)};font-weight:600">${arr(gr)} ${Math.abs(gr).toFixed(1)}%</span></div>
     </div>
     ${fcStrip(raw)}
     ${mkInactiveToggle()}
@@ -638,19 +636,19 @@ function renderStoreDetail(el,name){
   const monthRows=MONTHS.map((m,i)=>{
     const g=mG[i];
     return `<tr>
-      <td style="font-weight:700;color:var(--gold)">${m}</td>
-      <td style="font-weight:700">${fmtM(mV[i])}원</td>
+      <td style="font-weight:600;color:var(--sub)">${m}</td>
+      <td style="font-weight:600">${fmtM(mV[i])}원</td>
       <td style="color:var(--sub)">${fmtM(mP[i])}원</td>
-      <td style="font-weight:700;color:${cc(g)}">${arr(g)} ${Math.abs(g).toFixed(1)}%</td>
+      <td style="font-weight:600;color:${cc(g)}">${arr(g)} ${Math.abs(g).toFixed(1)}%</td>
       <td style="color:var(--sub);font-size:11px">${fmtM(s.monthly_new[m]||0)} / ${fmtM(s.monthly_old[m]||0)}</td>
     </tr>`;
   }).join('');
 
   el.innerHTML=`
     <div class="drill-hdr">
-      <div style="font-size:22px;font-weight:800">${name}</div>
-      <span class="ch-tag" style="background:rgba(0,0,0,.3);color:${CH_COLOR[s.channel]||'var(--sub)'}">${CH_SHORT[s.channel]||s.channel}</span>
-      <span class="mgr-tag" style="color:${color}">● ${s.manager}</span>
+      <div style="font-size:24px;font-weight:600">${name}</div>
+      <span class="ch-tag">${CH_SHORT[s.channel]||s.channel}</span>
+      <span class="mgr-tag"><i class="dot" style="background:${color}"></i>${s.manager}</span>
       <span style="font-size:12px;color:var(--sub)">#${s.rank}위</span>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:20px">
@@ -661,15 +659,15 @@ function renderStoreDetail(el,name){
         {lbl:`${info.curMonLabel} ${isMonthEnd?'확정':'추정마감'}`,val:fmtM(curForecast)+'원',cls:'gold'},
         {lbl:`${info.curMonLabel} ${isMonthEnd?'':'추정'} 신장율`,val:`${arr(curGr)} ${Math.abs(curGr).toFixed(1)}%`,cls:cls(curGr)},
         {lbl:`${info.nextMonLabel} 추정마감`,val:fmtM(nextForecast)+'원',cls:'gold'},
-      ].map(k=>`<div class="chart-card" style="padding:14px">
-        <div style="font-size:10px;color:var(--sub);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px">${k.lbl}</div>
-        <div style="font-size:17px;font-weight:800" class="${k.cls}">${k.val}</div>
+      ].map(k=>`<div class="chart-card" style="padding:16px">
+        <div style="font-size:12px;color:var(--sub);margin-bottom:8px">${k.lbl}</div>
+        <div style="font-size:16px;font-weight:600" class="${k.cls}">${k.val}</div>
       </div>`).join('')}
     </div>
     <div class="chart-card" style="margin-bottom:20px;padding:16px">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <div style="font-size:11px;color:var(--sub);letter-spacing:.5px;font-weight:700;text-transform:uppercase">📝 특이사항</div>
-        <button class="note-btn ${note?'filled':''}" onclick="openNote('${name.replace(/'/g,"\\'")}')"> ${note?'✏️ 수정':'➕ 입력'}</button>
+        <div style="font-size:13px;color:var(--sub);font-weight:500">특이사항</div>
+        <button class="note-btn ${note?'filled':''}" onclick="openNote('${name.replace(/'/g,"\\'")}')">${note?'수정':'입력'}</button>
       </div>
       <div id="noteDisplay" style="margin-top:8px;font-size:13px;color:${note?'var(--text)':'var(--sub)'}">
         ${note||'특이사항 없음'}
@@ -692,9 +690,9 @@ function renderStoreDetail(el,name){
       <div class="chart-card">
         <div class="chart-title">${info.nextMonLabel} 추정마감 <span class="sub">전년비중 + 주중/주말 가중</span></div>
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:220px;gap:8px">
-          <div style="font-size:36px;font-weight:800;color:var(--gold)">${fmtM(nextForecast)}원</div>
+          <div style="font-size:32px;font-weight:600;color:var(--gold)">${fmtM(nextForecast)}원</div>
           <div style="font-size:13px;color:var(--sub)">전년 ${info.nextMonLabel} 추정 ${fmtM(prevNextMon)}원</div>
-          <div style="font-size:18px;font-weight:700;color:${cc(nextGr)}">${arr(nextGr)} ${Math.abs(nextGr).toFixed(1)}%</div>
+          <div style="font-size:20px;font-weight:600;color:${cc(nextGr)}">${arr(nextGr)} ${Math.abs(nextGr).toFixed(1)}%</div>
           <div style="font-size:11px;color:var(--sub);margin-top:4px">주중 ${WD_FACTOR} / 주말 ${WE_FACTOR} 가중 적용</div>
         </div>
       </div>
@@ -729,21 +727,21 @@ function storeTable(list){
       const fc=calcStoreForecast(s);
       const rowCls=!s.active?'inactive-row':'';
       return `<tr class="${rowCls}" onclick="selectStore('${s.name.replace(/'/g,"\\'")}')">
-        <td style="color:var(--gold);font-weight:700">${s.rank>900?'-':'#'+s.rank}</td>
-        <td style="font-weight:700">${s.name}</td>
-        <td><span class="ch-tag" style="background:rgba(0,0,0,.3);color:${CH_COLOR[s.channel]||'var(--sub)'}">${CH_SHORT[s.channel]||s.channel}</span></td>
-        <td><span class="mgr-tag" style="color:${color}">● ${s.manager}</span></td>
-        <td style="font-weight:700">${fmtM(s.total)}</td>
+        <td style="color:var(--sub)">${s.rank>900?'-':'#'+s.rank}</td>
+        <td style="font-weight:600">${s.name}</td>
+        <td><span class="ch-tag">${CH_SHORT[s.channel]||s.channel}</span></td>
+        <td><span class="mgr-tag"><i class="dot" style="background:${color}"></i>${s.manager}</span></td>
+        <td style="font-weight:600">${fmtM(s.total)}</td>
         <td style="color:var(--sub)">${fmtM(s.prev_year)}</td>
-        <td style="font-weight:700;color:${cc(gr)}">${arr(gr)} ${Math.abs(gr).toFixed(1)}%</td>
+        <td style="font-weight:600;color:${cc(gr)}">${arr(gr)} ${Math.abs(gr).toFixed(1)}%</td>
         ${MONTHS.map(m=>{
           const mv=s.monthly[m]||0,pv=s.monthly_prev[m]||0,mg=pct(mv,pv);
-          return `<td>${fmtM(mv)}</td><td style="color:${cc(mg)};font-size:10px">${arr(mg)}${Math.abs(mg).toFixed(0)}%</td>`;
+          return `<td>${fmtM(mv)}</td><td style="color:${cc(mg)};font-size:11px">${arr(mg)}${Math.abs(mg).toFixed(0)}%</td>`;
         }).join('')}
-        <td style="font-weight:700;color:var(--gold)">${fmtM(fc.curForecast)}</td>
-        <td style="font-weight:700;color:var(--teal)">${fmtM(fc.nextForecast)}</td>
+        <td style="font-weight:600">${fmtM(fc.curForecast)}</td>
+        <td style="color:var(--sub)">${fmtM(fc.nextForecast)}</td>
         <td onclick="event.stopPropagation()">
-          <button class="note-btn ${note?'filled':''}" onclick="openNote('${s.name.replace(/'/g,"\\'")}')"> ${note?'📝':'➕'}</button>
+          <button class="note-btn ${note?'filled':''}" onclick="openNote('${s.name.replace(/'/g,"\\'")}')">${note?'메모':'입력'}</button>
         </td>
       </tr>`;
     }).join('')}
@@ -770,7 +768,7 @@ function populateDD(list){
     `<div class="dd-item" onclick="selectStore('${s.name.replace(/'/g,"\\'")}')">
       <div class="dd-dot" style="background:${MGR_COLOR[s.manager]||'var(--sub)'}"></div>
       <div><div style="font-weight:600">${s.name}</div>
-      <div style="font-size:10px;color:var(--sub)">${s.manager} · ${CH_SHORT[s.channel]||s.channel}</div></div>
+      <div style="font-size:11px;color:var(--sub)">${s.manager} · ${CH_SHORT[s.channel]||s.channel}</div></div>
     </div>`).join('');
 }
 function filterDD(){
@@ -787,7 +785,7 @@ document.getElementById('storeSearch')?.addEventListener('focus',()=>{if(documen
 function openNote(name){
   noteTarget=name;
   const s=STORES.find(x=>x.name===name);
-  document.getElementById('noteTitle').textContent='📝 '+name;
+  document.getElementById('noteTitle').textContent=name;
   document.getElementById('noteSub').textContent=s?`${s.manager} 담당 · ${CH_SHORT[s.channel]||s.channel}`:'';
   document.getElementById('noteText').value=getNote(name);
   document.getElementById('noteOverlay').classList.add('open');
@@ -804,34 +802,43 @@ function saveNote(){
 
 // ══ 차트 ══
 const BASE={responsive:true,maintainAspectRatio:false,animation:{duration:350},
-  plugins:{legend:{labels:{color:'#6b7694',font:{size:11}}},
-    tooltip:{backgroundColor:'rgba(18,20,28,.95)',titleColor:'#e2e6f0',bodyColor:'#8892a4',borderColor:'#2a2e40',borderWidth:1}},
-  scales:{x:{grid:{color:'rgba(42,46,64,.4)'},ticks:{color:'#6b7694',font:{size:11}}},
-    y:{grid:{color:'rgba(42,46,64,.4)'},ticks:{color:'#6b7694',font:{size:11},callback:v=>fmtM(v)}}}};
+  plugins:{legend:{labels:{color:'#9a9ca3',font:{size:11}}},
+    tooltip:{backgroundColor:'#1d1e20',titleColor:'#ebebe9',bodyColor:'#b4b5b9',borderColor:'rgba(255,255,255,.12)',borderWidth:1}},
+  scales:{x:{grid:{color:'rgba(255,255,255,.06)'},ticks:{color:'#9a9ca3',font:{size:11}}},
+    y:{grid:{color:'rgba(255,255,255,.06)'},ticks:{color:'#9a9ca3',font:{size:11},callback:v=>fmtM(v)}}}};
 
 function destroyCharts(){Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}});charts={};}
+// 가장 큰 값만 강조색, 나머지는 중립 단계
+const NEUTRAL_STEPS=['#d6d7d9','#aeb0b4','#898b90','#6a6c71','#505257','#3b3d41'];
+function leadColors(data){
+  const out=[];
+  data.map((v,i)=>[v,i]).sort((a,b)=>b[0]-a[0]).forEach(([v,i],rank)=>{
+    out[i]=rank===0?'#e8b86d':NEUTRAL_STEPS[Math.min(rank-1,NEUTRAL_STEPS.length-1)];
+  });
+  return out;
+}
 function mkBarLine(id,labels,bar,line,bL,lL){
   charts[id]=new Chart(document.getElementById(id),{data:{labels,datasets:[
-    {type:'bar',label:bL,data:bar,backgroundColor:'rgba(232,184,109,.65)',borderRadius:5,borderSkipped:false},
-    {type:'line',label:lL,data:line,borderColor:'rgba(96,165,250,.8)',borderWidth:2,pointRadius:3,pointBackgroundColor:'var(--blue)',fill:false,tension:.3}
+    {type:'bar',label:bL,data:bar,backgroundColor:'rgba(232,184,109,.85)',borderRadius:4,borderSkipped:false},
+    {type:'line',label:lL,data:line,borderColor:'#c9cacc',borderWidth:2,pointRadius:3,pointBackgroundColor:'#c9cacc',fill:false,tension:.3}
   ]},options:{...BASE}});
 }
 function mkGrowthBar(id,labels,data){
   charts[id]=new Chart(document.getElementById(id),{type:'bar',
-    data:{labels,datasets:[{data,backgroundColor:data.map(g=>g>=0?'rgba(34,197,94,.6)':'rgba(239,68,68,.6)'),borderRadius:5,borderSkipped:false}]},
+    data:{labels,datasets:[{data,backgroundColor:data.map(g=>g>=0?'rgba(109,187,138,.75)':'rgba(224,122,114,.75)'),borderRadius:4,borderSkipped:false}]},
     options:{...BASE,plugins:{...BASE.plugins,legend:{display:false}},
       scales:{...BASE.scales,y:{...BASE.scales.y,ticks:{...BASE.scales.y.ticks,callback:v=>v+'%'}}}}});
 }
 function mkHorzBar(id,labels,data,colors){
   charts[id]=new Chart(document.getElementById(id),{type:'bar',
-    data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},
-    options:{...BASE,indexAxis:'y',plugins:{...BASE.plugins,legend:{display:false}}}});
+    data:{labels,datasets:[{data,backgroundColor:leadColors(data),borderRadius:4,borderSkipped:false}]},
+    options:{...BASE,indexAxis:'y',plugins:{...BASE.plugins,legend:{display:false}},scales:{x:{...BASE.scales.x,ticks:{...BASE.scales.x.ticks,callback:v=>fmtM(v),maxRotation:0}},y:{grid:{display:false},ticks:{color:'#9a9ca3',font:{size:12}}}}}});
 }
 function mkDoughnut(id,labels,data,colors){
   charts[id]=new Chart(document.getElementById(id),{type:'doughnut',
-    data:{labels,datasets:[{data,backgroundColor:colors.map(c=>c+'88'),borderColor:colors,borderWidth:2}]},
+    data:{labels,datasets:[{data,backgroundColor:leadColors(data),borderColor:'#161718',borderWidth:2}]},
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:350},
-      plugins:{legend:{position:'right',labels:{color:'#6b7694',font:{size:11}}},
+      plugins:{legend:{position:'right',labels:{color:'#9a9ca3',font:{size:11}}},
         tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmtM(ctx.raw)}원`}}}}});
 }
 
@@ -870,9 +877,9 @@ document.getElementById('fileInput').addEventListener('change',function(e){
         DATA_DATE=new Date(dateStr+'T00:00:00');
       }
       renderKPI();renderContent();
-      alert(`✅ 업데이트 완료 — ${STORES.filter(s=>s.active).length}개 유효 / ${STORES.length}개 전체\n기준일: ${document.getElementById('dataDate').value}`);
+      alert(`업데이트 완료 — ${STORES.filter(s=>s.active).length}개 유효 / ${STORES.length}개 전체\n기준일: ${document.getElementById('dataDate').value}`);
       e.target.value='';
-    }catch(err){alert('❌ 오류: '+err.message);}
+    }catch(err){alert('오류: '+err.message);}
   };
   reader.readAsBinaryString(file);
 });
