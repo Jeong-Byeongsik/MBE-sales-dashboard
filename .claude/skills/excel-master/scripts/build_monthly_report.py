@@ -7,7 +7,7 @@
 DIR 안에 ytd.json, report-<날짜>.json, sales-<YYYY-MM>.json, stores.json 이 있어야 합니다.
 숫자 원칙: 헤드라인(보고(요약))은 일일 보고서 공식 숫자, 매장 단위는 마스터 DB. 차이는 '※ 대조' 주석으로 밝힙니다.
 """
-import argparse, collections, json, os, re, sys
+import argparse, collections, datetime, json, os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from xlkit import Kit, P, NF, rc, cn
 import build_sales_workbook as B
@@ -335,6 +335,14 @@ class Report:
         K.footer(ws, e + 3, 13, c['author'], 1)
         ws.set_h_pagebreaks([t0 - 1])
 
+    def next_week(self):
+        """기준일(보고서 date) 다음 주 날짜를 요일과 함께 계산한다(하드코딩 금지)."""
+        d0 = datetime.date.fromisoformat(self.rep['date'])
+        mon = d0 + datetime.timedelta(days=(7 - d0.weekday()) % 7 or 7)
+        wd = '월화수목금토일'
+        f = lambda n: (lambda x: f'{x.month}/{x.day}({wd[x.weekday()]})')(mon + datetime.timedelta(days=n))
+        return dict(mon=f(0), wed=f(2), thu=f(3), later=f(11))
+
     def gkey(self, pref):
         return next(k for k in self.rep['goal'] if k.startswith(pref))
 
@@ -358,10 +366,11 @@ class Report:
         gro = sorted(((x['growth'], x['name']) for x in R['channels'] if '합' not in x['name'] and x['growth'] is not None))
         lines = [
             '▶ 현황 : 일 목표 진도 대비 ' + ', '.join(f'{n} {v * 100:.1f}%' for v, n in pr) + ' 순으로 낮음. 진도 미달 채널부터 점검 필요함',
-            f'▶ 추이 : MB 전년비는 {neg}개월 연속 마이너스, 전년 같은 기간 대비 하락폭은 {gro[0][1]} {gro[0][0] * 100:.1f}%가 가장 큼',
+            (f'▶ 추이 : MB 전년비는 {neg}개월 연속 마이너스, 전년 같은 기간 대비 하락폭은 {gro[0][1]} {gro[0][0] * 100:.1f}%가 가장 큼' if neg >= 2
+             else f'▶ 추이 : 전년 같은 기간 대비 증감이 가장 낮은 유통은 {gro[0][1]} {gro[0][0] * 100:+.1f}%'),
         ]
         if mb.get('new_dc') is not None:
-            lines.append(f"▶ 가격 : 신상 할인율 {mb['new_dc'] * 100:.1f}%로 전년 대비 {mb['new_dc_diff']:+.1f}%p, 할인 판매 확대로 매출 대비 수익성 점검 필요함")
+            lines.append(f"▶ 가격 : 신상 할인율 {mb['new_dc'] * 100:.1f}%로 전년 대비 {mb['new_dc_diff']:+.1f}%p" + (', 할인 판매 확대로 매출 대비 수익성 점검 필요함' if mb['new_dc_diff'] > 0 else ''))
         lines.append('▶ 가설(미확정) : 하락 원인(행사 시기, 재고 가용성, 날씨, 온라인 노출 등)은 확인 전이므로 담당 확인 후 확정 예정임')
         lines.append("▶ 향후 : 다음 주 액션 플랜과 프로모션 제안은 '이슈·액션' 시트 참조")
         return lines
@@ -587,7 +596,9 @@ class Report:
         chans = ['백화점', '아울렛', '대리점', '직영점', '온라인', '기타']
         wf = [dict(name=n, delta=sum(sum(x['m']) - sum(x['p']) for x in S if x['channel'] == n)) for n in chans]   # 엑셀(월별 합계)과 같은 기준
         mb = next((b for b in R['brands'] if b['name'] == '마스터바니'), {})
-        onl = next((x for x in R['channels'] if x['name'] == '온라인'), None)
+        chs_ = [x for x in R['channels'] if '합' not in x['name'] and x['target']]
+        low = min(ch, key=lambda c: c['prog']) if ch else None
+        wst = min((x for x in R['channels'] if '합' not in x['name'] and x['growth'] is not None), key=lambda x: x['growth'], default=None)
         cnt = collections.Counter(x['judge'] for x in R['checks'] if '비즈알파' not in x['item'])
         neg = 0
         for gr in reversed(self.m_growth()):
@@ -604,7 +615,8 @@ class Report:
             ytd_sales=M(k['ytd']['sales']), ytd_target=M(k['ytd']['target']), ytd_rate=k['ytd']['rate'], ytd_growth=k['ytd']['growth'],
             ytd_short=M(k['ytd']['short']), neg_months=neg,
             channels=ch, monthly=[dict(month=m['month'], sales=M(m['sales']), ly=M(m['ly']), growth=m.get('growth')) for m in R['mb_monthly']],
-            waterfall=wf, new_dc=mb.get('new_dc'), new_dc_diff=mb.get('new_dc_diff'), online_growth=onl['growth'] if onl else None,
+            waterfall=wf, new_dc=mb.get('new_dc'), new_dc_diff=mb.get('new_dc_diff'),
+            low_channel=dict(name=low['name'], prog=low['prog']) if low else None, worst_channel=dict(name=wst['name'], growth=wst['growth']) if wst else None,
             dec_base=M(f2['base']), dec_target=M(f2['target']), dec_rate=f2['rate'],
             judges=dict(cnt), priority=[dict(rank=r[0], name=r[1], basis=r[2], owner=r[3], channel=r[4], prog=r[5]) for r in ex.get('priority', [])],
             actions=[dict(rank=a[0], task=a[1], basis=a[2], owner=a[3], due=a[4], metric=a[5]) for a in ex.get('actions', [])],
@@ -625,7 +637,7 @@ class Report:
              '■ 요약',
              f"- {d['month']}월 누계 {f(d['month_sales'])}백만 (월 목표 {f(d['month_target'])}의 {p(d['month_rate'])}, 진도 대비 {p(d['progress_rate'])}, 전년 같은 기간 {sp(d['month_growth'])})",
              f"- 마감 예상 {f(d['fc_base'])}백만 (목표 대비 {p(d['fc_rate'])}), 목표 달성에는 잔여 {d['days_left']}일 일평균 {f(d['need_daily'])}백만 필요 (계획 {f(d['plan_daily'])}, 전일 {f(d['y_day_sales'])})",
-             f"- 1~{d['month']}월 누계 {f(d['ytd_sales'])}백만 (전년 {sp(d['ytd_growth'])}, 누계 목표 {p(d['ytd_rate'])}), 전년비 {d['neg_months']}개월 연속 마이너스", '',
+             f"- 1~{d['month']}월 누계 {f(d['ytd_sales'])}백만 (전년 {sp(d['ytd_growth'])}, 누계 목표 {p(d['ytd_rate'])})" + (f", 전년비 {d['neg_months']}개월 연속 마이너스" if d['neg_months'] >= 2 else ''), '',
              '■ 유통별 진도 대비', '- ' + ' / '.join(f"{c['name']} {p(c['prog'])}" for c in low), '',
              '■ 이슈',
              f"- 전년 대비 누계 증감 {f(tot)}백만 중 {wf[0]['name']} {f(wf[0]['delta'])} ({wf[0]['delta'] / tot * 100:.0f}%)",
@@ -770,22 +782,25 @@ class Report:
         need, plan = g[self.gkey('잔여 필요 일평균')]['amount'] / 1e6, g[self.gkey('잔여 일목표')]['amount'] / 1e6
         yd = g[self.gkey('어제')]['amount'] if False else None
         share = g[self.gkey('경과 진도')]['amount'] / R['kpi']['month']['target']
-        dept = next((x for x in R['channels'] if x['name'] == '백화점'), None)
-        onl = next((x for x in R['channels'] if x['name'] == '온라인'), None)
+        chs_ = [x for x in R['channels'] if '합' not in x['name'] and x['target']]
+        dept = min(chs_, key=lambda x: x['sales'] / (x['target'] * share)) if chs_ else None            # 진도 달성이 가장 낮은 유통
+        onl = min((x for x in R['channels'] if '합' not in x['name'] and x['growth'] is not None), key=lambda x: x['growth'], default=None)   # 전년 대비 증감이 가장 낮은 유통
         top5 = ', '.join(r[1] for r in rows2[:3]) or '-'
         owners = sorted({r[3] for r in rows2 if r[3] != '-'})
+        nw = self.next_week()
         acts = [
-            [1, '일 목표 갭 일일 점검', f'잔여 필요 일평균 {need:,.0f}백만은 계획 일평균 {plan:,.0f}의 {need / plan:.2f}배. 평일 일 목표 미달 매장 확인', '영업부', '11/10(월)~ 매일', '일 목표 달성률'],
-            [2, '진도 미달 매장 현장 점검', f'우선 점검 매장: {top5} 등 5곳(진도 70% 미만)', ', '.join(owners) or '영업부', '11/12(수)', '진도 달성률'],
+            [1, '일 목표 갭 일일 점검', f'잔여 필요 일평균 {need:,.0f}백만은 계획 일평균 {plan:,.0f}의 {need / plan:.2f}배. 평일 일 목표 미달 매장 확인', '영업부', f"{nw['mon']}~ 매일", '일 목표 달성률'],
+            [2, '진도 미달 매장 현장 점검', f'우선 점검 매장: {top5} 등 5곳(진도 70% 미만)', ', '.join(owners) or '영업부', nw['wed'], '진도 달성률'],
         ]
         if dept:
-            acts.append([3, '백화점 진도 회복 계획', f"백화점 진도 대비 {dept['sales'] / (dept['target'] * share) * 100:.1f}%로 유통 중 최저. 행사·VMD 협의안 정리", '영업부', '11/13(목)', '채널 진도 달성'])
+            acts.append([3, f"{dept['name']} 진도 회복 계획", f"{dept['name']} 진도 대비 {dept['sales'] / (dept['target'] * share) * 100:.1f}%로 유통 중 최저. 행사·VMD 협의안 정리", '영업부', nw['thu'], '채널 진도 달성'])
         if mb.get('new_dc') is not None:
-            acts.append([4, '신상 할인 확대 원인 확인', f"신상 할인율 {mb['new_dc'] * 100:.1f}% (전년 대비 {mb['new_dc_diff']:+.1f}%p). 행사·재고 사유와 수익성 영향 확인", '영업부', '11/13(목)', '신상 할인율'])
-        if onl:
-            acts.append([5, '온라인 하락 원인 확인', f"온라인 {nm}월 전년 같은 기간 대비 {onl['growth'] * 100:+.1f}%. 노출·재고·행사 영향 확인", '온라인 담당', '11/13(목)', '온라인 신장율'])
+            up = mb.get('new_dc_diff', 0) > 0
+            acts.append([4, '신상 할인 확대 원인 확인' if up else '신상 할인율 점검', f"신상 할인율 {mb['new_dc'] * 100:.1f}% (전년 대비 {mb['new_dc_diff']:+.1f}%p). " + ('행사·재고 사유와 수익성 영향 확인' if up else '전년보다 낮아 수익성 영향 확인'), '영업부', nw['thu'], '신상 할인율'])
+        if onl and onl['growth'] < 0:
+            acts.append([5, f"{onl['name']} 하락 원인 확인", f"{onl['name']} {nm}월 전년 같은 기간 대비 {onl['growth'] * 100:+.1f}%. 노출·재고·행사 영향 확인", '온라인 담당' if onl['name'] == '온라인' else '영업부', nw['thu'], f"{onl['name']} 신장율"])
         f2 = R['forecast'][1]
-        acts.append([len(acts) + 1, '다음 달 선제 대응', f"다음 달 예상 {f2['base'] / 1e6:,.0f}백만으로 목표 {f2['target'] / 1e6:,.0f}백만의 {f2['rate'] * 100:.1f}%. 행사 계획 선제 협의", '영업부', '11/20(목)', '다음 달 진도'])
+        acts.append([len(acts) + 1, '다음 달 선제 대응', f"다음 달 예상 {f2['base'] / 1e6:,.0f}백만으로 목표 {f2['target'] / 1e6:,.0f}백만의 {f2['rate'] * 100:.1f}%. 행사 계획 선제 협의", '영업부', nw['later'], '다음 달 진도'])
         l3 = K.table(ws, a0 + 1, 1, ['순위', '과제', '근거', '담당', '기한', '확인 지표'], acts, None, ['center', 'left', 'left', 'center', 'center', 'center'], row_h=40, bold_cols=(1,))
         for i, rw in enumerate(acts):
             for j in range(1, 6):
@@ -794,7 +809,7 @@ class Report:
         q0 = l3 + 2
         K.section(ws, q0, 1, 6, 'Ⅳ. 프로모션 제안 (가설, 효과는 실행 후 측정)', '')
         promos = [
-            ['A', '진도 미달 백화점 주말 사은 행사', '진도 미달 채널 매출 회복을 위한 주말 구매금액별 사은 행사. 가설: 객단가·방문 전환 개선', '백화점 중 우선 점검 매장', '다음 주말 1회', '행사 전후 일 매출, 객단가'],
+            ['A', f"진도 미달 {dept['name'] if dept else '유통'} 주말 사은 행사", '진도 미달 채널 매출 회복을 위한 주말 구매금액별 사은 행사. 가설: 객단가·방문 전환 개선', f"{dept['name'] if dept else '해당 유통'} 중 우선 점검 매장", '다음 주말 1회', '행사 전후 일 매출, 객단가'],
             ['B', '신상 부진 재고 모음 기획전', '점검 항목의 신상 부진 재고(재고 300개 이상·당월 판매 5% 미만) 품번을 묶어 온라인·대리점 동시 노출. 가설: 재고 회전 개선', '온라인, 대리점', '2주', '품번별 판매율, 할인율 변화'],
         ]
         l4 = K.table(ws, q0 + 1, 1, ['안', '제안', '근거·가설', '대상', '기간', '측정 지표'], promos, None, ['center', 'left', 'left', 'center', 'center', 'center'], row_h=48, bold_cols=(1,))
