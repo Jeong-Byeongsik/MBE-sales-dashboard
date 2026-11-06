@@ -125,11 +125,13 @@ class Kit:
 
     # ---------- 표 ----------
     def table(self, ws, r, c, headers, rows, nfs=None, aligns=None, header='navy', total_last=False,
-              zebra=True, row_h=19, head_h=26, bold_cols=()):
+              zebra=True, row_h=19, head_h=26, bold_cols=(), bcolor=None):
+        """bcolor='#000000' 이면 회사 양식(검정 실선), 기본은 연한 회색 선."""
+        bc = bcolor or P['line']
         nfs = nfs or [None] * len(headers)
         aligns = aligns or ['center'] * len(headers)
         hbg, hfc = (P['navy'], P['white']) if header == 'navy' else (P['grey'], P['ink'])
-        hf = self.fmt(bold=True, align='center', bg_color=hbg, font_color=hfc, border=1, border_color=P['line'], text_wrap=True)
+        hf = self.fmt(bold=True, align='center', bg_color=hbg, font_color=hfc, border=1, border_color=bc, text_wrap=True)
         ws.set_row(r, head_h)
         for j, h in enumerate(headers):
             ws.write(r, c + j, h, hf)
@@ -138,7 +140,7 @@ class Kit:
             is_tot = total_last and i == len(rows) - 1
             ws.set_row(rr, row_h)
             for j, v in enumerate(row):
-                kw = dict(border=1, border_color=P['line'], align=aligns[j])
+                kw = dict(border=1, border_color=bc, align=aligns[j])
                 if nfs[j]:
                     kw['num_format'] = nfs[j]
                 if is_tot:

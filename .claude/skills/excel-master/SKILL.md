@@ -100,6 +100,9 @@ K.footer(ws, 마지막행, 12, '영업부 정병식 과장'); K.close()
 ```
 - 완성 예제: `scripts/build_sales_workbook.py` (대시보드·유통별·월별추이·매장별·분석·원데이터·사용설명 7시트).
   `python build_sales_workbook.py --input ytd.json --out ★MBE 영업분석(11.05마감).xlsx`
+- 월간 보고 가안(14시트: 회사 양식 `보고(요약)` + 대시보드·증감분석·일별·3사비교·품목·스타일·이슈·액션):
+  `python scripts/build_monthly_report.py --data 자료폴더 --date 2026-11-05 --out "★MBE 11월 영업실적 보고(11.05마감)_가안.xlsx"`
+  헤드라인은 일일 보고서 공식 숫자, 매장 단위는 마스터 DB를 쓰고 차이는 `※ 대조` 주석으로 밝힌다. 진도 달성은 회사 기준(채널 전체 실적 ÷ 채널 진도 목표).
 - 기법 모음: `scripts/recipes_demo.py` (조건부서식, 차트 5종, 드롭다운 선택형 대시보드). 더 많은 기법은 `references/recipes.md`.
 - 다른 데이터(재고, 상품 등)는 예제의 시트 함수를 복사해 열 구성만 바꾼다.
 
@@ -138,5 +141,5 @@ K.footer(ws, 마지막행, 12, '영업부 정병식 과장'); K.close()
 - 공유할 때는 `사용설명` 시트에 기준일, 데이터 출처, 갱신 방법을 적는다.
 
 ## 파일
-- `scripts/xlkit.py` 헬퍼, `scripts/build_sales_workbook.py` 7시트 완성 예제, `scripts/recipes_demo.py` 기법 카탈로그
+- `scripts/xlkit.py` 헬퍼, `scripts/build_sales_workbook.py` 7시트 완성 예제, `scripts/build_monthly_report.py` 월간 보고 가안(14시트), `scripts/recipes_demo.py` 기법 카탈로그
 - `scripts/verify_xlsx.py` 재계산·오류 검사·렌더링, `references/recipes.md` 상세 레시피
